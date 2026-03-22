@@ -10,6 +10,7 @@ const DDL = `
     avatar_url TEXT,
     oauth_provider TEXT,
     oauth_id TEXT,
+    deleted_at INTEGER,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
   CREATE UNIQUE INDEX IF NOT EXISTS users_oauth_idx ON users(oauth_provider, oauth_id);

@@ -90,6 +90,22 @@ describe("magic-link routes", () => {
       expect(res.status).toBe(400);
     });
 
+    it("returns 500 when email sending fails", async () => {
+      vi.mocked(sendMagicLinkEmail).mockRejectedValueOnce(new Error("SMTP down"));
+
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/auth/magic-link/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-forwarded-for": "1.2.3.4" },
+          body: JSON.stringify({ email: "user@example.com" }),
+        }),
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toMatch(/failed to send/i);
+    });
+
     it("cleans up previous tokens for the same email", async () => {
       const db = testState.db!;
       db.insert(schema.magicLinkTokens)
@@ -204,6 +220,43 @@ describe("magic-link routes", () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toMatch(/expired/i);
+    });
+
+    it("redirects to login error page for deleted user", async () => {
+      const db = testState.db!;
+      db.insert(schema.users)
+        .values({
+          id: "deleted-user",
+          email: "deleted@example.com",
+          name: "Deleted User",
+          deletedAt: new Date(),
+        })
+        .run();
+      db.insert(schema.magicLinkTokens)
+        .values({
+          id: "deleted-token",
+          email: "deleted@example.com",
+          expiresAt: new Date(Date.now() + 60000),
+        })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/auth/magic-link/verify?token=deleted-token", {
+          redirect: "manual",
+        }),
+      );
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get("Location")).toBe("/#/login?error=account-deleted");
+    });
+
+    it("returns 400 when token query parameter is missing", async () => {
+      const app = createApp();
+      const res = await app.request(new Request("http://localhost/api/auth/magic-link/verify"));
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
     });
 
     it("grants admin role to first user", async () => {

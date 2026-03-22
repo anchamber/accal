@@ -54,6 +54,7 @@ describe("jumpdays routes", () => {
     const db = testState.db!;
     db.delete(schema.assignments).run();
     db.delete(schema.jumpDays).run();
+    db.delete(schema.roleConfig).run();
     db.delete(schema.userRoles).run();
     db.delete(schema.sessions).run();
     db.delete(schema.users).run();
@@ -150,6 +151,112 @@ describe("jumpdays routes", () => {
         }),
       );
       expect(res.status).toBe(409);
+    });
+  });
+
+  describe("PATCH /api/jumpdays/:id", () => {
+    it("updates the date of a jump day", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1", {
+          method: "PATCH",
+          body: JSON.stringify({ date: "2026-03-20" }),
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+
+      const updated = db.select().from(schema.jumpDays).all();
+      expect(updated[0]!.date).toBe("2026-03-20");
+    });
+
+    it("updates notes of a jump day", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1", {
+          method: "PATCH",
+          body: JSON.stringify({ notes: "Updated notes" }),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      const updated = db.select().from(schema.jumpDays).all();
+      expect(updated[0]!.notes).toBe("Updated notes");
+    });
+
+    it("clears notes by setting to null", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays)
+        .values({ id: "jd-1", date: "2026-03-15", notes: "Some notes" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1", {
+          method: "PATCH",
+          body: JSON.stringify({ notes: null }),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      const updated = db.select().from(schema.jumpDays).all();
+      expect(updated[0]!.notes).toBeNull();
+    });
+
+    it("returns 404 for non-existent jump day", async () => {
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/fake-id", {
+          method: "PATCH",
+          body: JSON.stringify({ notes: "test" }),
+        }),
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 400 for invalid input", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1", {
+          method: "PATCH",
+          body: JSON.stringify({ date: "not-a-date" }),
+        }),
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 403 for non-admin user", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // Create a non-admin user
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "test-user-nonadmin",
+        email: "nonadmin@example.com",
+        name: "Non Admin",
+        oauthProvider: "google",
+        oauthId: "999",
+      });
+      activeUserId = "test-user-nonadmin";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1", {
+          method: "PATCH",
+          body: JSON.stringify({ notes: "hack attempt" }),
+        }),
+      );
+      expect(res.status).toBe(403);
     });
   });
 
@@ -298,6 +405,82 @@ describe("jumpdays routes", () => {
       );
       expect(res.status).toBe(403);
     });
+
+    it("rejects signup when max per day is reached", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // Configure SDL to have maxPerDay = 1
+      db.insert(schema.roleConfig)
+        .values({ role: "sdl", label: "SDL", requirement: "required", minPerDay: 1, maxPerDay: 1 })
+        .run();
+
+      // First user signs up as SDL
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      // Create second user with SDL role
+      seedTestUserWithRoles(db, ["sdl"], {
+        id: "test-user-2",
+        email: "user2@example.com",
+        name: "User 2",
+        oauthProvider: "github",
+        oauthId: "456",
+      });
+      activeUserId = "test-user-2";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toBe("Maximum signups reached for this role");
+    });
+
+    it("allows signup when max per day is not reached", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // Configure tandem_master with maxPerDay = 3
+      db.insert(schema.roleConfig)
+        .values({
+          role: "tandem_master",
+          label: "Tandem Master",
+          requirement: "optional",
+          minPerDay: 0,
+          maxPerDay: 3,
+        })
+        .run();
+
+      // One user already signed up
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "tandem_master" })
+        .run();
+
+      // Second user signs up (2 of 3 max)
+      seedTestUserWithRoles(db, ["tandem_master"], {
+        id: "test-user-2",
+        email: "user2@example.com",
+        name: "User 2",
+        oauthProvider: "github",
+        oauthId: "456",
+      });
+      activeUserId = "test-user-2";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "tandem_master" }),
+        }),
+      );
+      expect(res.status).toBe(201);
+    });
   });
 
   describe("DELETE /api/jumpdays/:id/signup", () => {
@@ -319,6 +502,244 @@ describe("jumpdays routes", () => {
 
       const assignments = db.select().from(schema.assignments).all();
       expect(assignments).toHaveLength(0);
+    });
+
+    it("returns 400 for invalid role in body", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "DELETE",
+          body: JSON.stringify({ role: "nonexistent_role" }),
+        }),
+      );
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("POST /api/jumpdays/import", () => {
+    const validIcal = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "DTSTART;VALUE=DATE:20260401",
+      "DTEND;VALUE=DATE:20260402",
+      "SUMMARY:Jump Day April",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "DTSTART;VALUE=DATE:20260415",
+      "DTEND;VALUE=DATE:20260416",
+      "SUMMARY:Mid-April Jump",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    it("imports events from multipart file upload", async () => {
+      const app = createApp();
+      const formData = new FormData();
+      formData.append("file", new File([validIcal], "events.ics", { type: "text/calendar" }));
+
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/import", {
+          method: "POST",
+          headers: { Cookie: "session=valid-session" },
+          body: formData,
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.created).toBe(2);
+      expect(body.skipped).toBe(0);
+      expect(body.total).toBe(2);
+
+      const db = testState.db!;
+      const days = db.select().from(schema.jumpDays).all();
+      expect(days).toHaveLength(2);
+    });
+
+    it("skips dates that already exist", async () => {
+      const db = testState.db!;
+      // Pre-seed one of the dates from the iCal
+      db.insert(schema.jumpDays).values({ id: "existing-1", date: "2026-04-01" }).run();
+
+      const app = createApp();
+      const formData = new FormData();
+      formData.append("file", new File([validIcal], "events.ics", { type: "text/calendar" }));
+
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/import", {
+          method: "POST",
+          headers: { Cookie: "session=valid-session" },
+          body: formData,
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.created).toBe(1);
+      expect(body.skipped).toBe(1);
+      expect(body.total).toBe(2);
+    });
+
+    it("returns 400 when no file provided in multipart", async () => {
+      const app = createApp();
+      const formData = new FormData();
+      // Append a text field instead of a file
+      formData.append("other", "not-a-file");
+
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/import", {
+          method: "POST",
+          headers: { Cookie: "session=valid-session" },
+          body: formData,
+        }),
+      );
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBe("No file provided");
+    });
+
+    it("returns 400 for empty iCal data (no events)", async () => {
+      const emptyIcal = "BEGIN:VCALENDAR\r\nEND:VCALENDAR";
+      const app = createApp();
+      const formData = new FormData();
+      formData.append("file", new File([emptyIcal], "empty.ics", { type: "text/calendar" }));
+
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/import", {
+          method: "POST",
+          headers: { Cookie: "session=valid-session" },
+          body: formData,
+        }),
+      );
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBe("No events found in iCal file");
+    });
+
+    it("imports via JSON body", async () => {
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/import", {
+          method: "POST",
+          body: JSON.stringify({ ical: validIcal }),
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.created).toBe(2);
+    });
+
+    it("returns 400 for empty JSON ical field", async () => {
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/import", {
+          method: "POST",
+          body: JSON.stringify({ ical: "" }),
+        }),
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 403 for non-admin user", async () => {
+      const db = testState.db!;
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "test-user-nonadmin",
+        email: "nonadmin@example.com",
+        name: "Non Admin",
+        oauthProvider: "google",
+        oauthId: "999",
+      });
+      activeUserId = "test-user-nonadmin";
+
+      const app = createApp();
+      const formData = new FormData();
+      formData.append("file", new File([validIcal], "events.ics", { type: "text/calendar" }));
+
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/import", {
+          method: "POST",
+          headers: { Cookie: "session=valid-session" },
+          body: formData,
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe("security - 401 without auth cookie", () => {
+    it("GET /api/jumpdays returns 401", async () => {
+      const app = createApp();
+      const res = await app.request(new Request("http://localhost/api/jumpdays?month=2026-03"));
+      expect(res.status).toBe(401);
+    });
+
+    it("POST /api/jumpdays returns 401", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: "2026-03-15" }),
+        }),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("PATCH /api/jumpdays/:id returns 401", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/jd-1", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: "test" }),
+        }),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("DELETE /api/jumpdays/:id returns 401", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/jd-1", { method: "DELETE" }),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("POST /api/jumpdays/:id/signup returns 401", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("DELETE /api/jumpdays/:id/signup returns 401", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/jd-1/signup", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("POST /api/jumpdays/import returns 401", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ical: "BEGIN:VCALENDAR\nEND:VCALENDAR" }),
+        }),
+      );
+      expect(res.status).toBe(401);
     });
   });
 });
