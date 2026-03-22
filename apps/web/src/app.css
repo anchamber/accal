@@ -684,6 +684,37 @@ input[type="checkbox"] {
   margin-bottom: 1rem;
 }
 
+/* Inline form controls (admin table) */
+.inline-input {
+  padding: 0.25rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.inline-select {
+  padding: 0.25rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.num-col {
+  width: 90px;
+  text-align: center;
+}
+
+.num-input {
+  width: 70px;
+  text-align: center;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .calendar-header {

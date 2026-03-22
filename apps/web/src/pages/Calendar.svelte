@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { JumpDay } from "@accal/shared";
-  import { ASSIGNMENT_ROLES, ASSIGNMENT_ROLE_CONFIG } from "@accal/shared";
   import { fetchJumpDays, createJumpDay, deleteJumpDay } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
+  import { getRoleConfigs } from "../lib/roles.svelte.ts";
   import JumpDayModal from "../components/JumpDayModal.svelte";
 
   let currentDate = $state(new Date());
@@ -47,14 +47,23 @@
   }
 
   function getStatus(jd: JumpDay): "full" | "partial" | "empty" {
-    const filledRoles = new Set(jd.assignments.map((a) => a.role));
-    const requiredRoles = ASSIGNMENT_ROLES.filter((r) => ASSIGNMENT_ROLE_CONFIG[r].requirement === "required");
-    const limitingRoles = ASSIGNMENT_ROLES.filter((r) => ASSIGNMENT_ROLE_CONFIG[r].requirement === "limiting");
+    const configs = getRoleConfigs();
+    const assignmentCounts = new Map<string, number>();
+    for (const a of jd.assignments) {
+      assignmentCounts.set(a.role, (assignmentCounts.get(a.role) ?? 0) + 1);
+    }
 
-    const allRequiredFilled = requiredRoles.every((r) => filledRoles.has(r));
+    const requiredConfigs = configs.filter((c) => c.requirement === "required");
+    const limitingConfigs = configs.filter((c) => c.requirement === "limiting");
+
+    const allRequiredFilled = requiredConfigs.every(
+      (c) => (assignmentCounts.get(c.role) ?? 0) >= c.minPerDay,
+    );
     if (!allRequiredFilled) return "empty";
 
-    const allLimitingFilled = limitingRoles.every((r) => filledRoles.has(r));
+    const allLimitingFilled = limitingConfigs.every(
+      (c) => (assignmentCounts.get(c.role) ?? 0) >= c.minPerDay,
+    );
     if (!allLimitingFilled) return "partial";
 
     return "full";

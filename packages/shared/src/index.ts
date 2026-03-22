@@ -18,17 +18,44 @@ export type AssignmentRole =
 export type RequirementLevel = "required" | "limiting" | "optional";
 
 export interface RoleConfig {
+  role: AssignmentRole;
   label: string;
   requirement: RequirementLevel;
+  minPerDay: number;
+  maxPerDay: number | null; // null = unlimited
 }
 
-export const ASSIGNMENT_ROLE_CONFIG: Record<AssignmentRole, RoleConfig> = {
-  sdl: { label: "SDL", requirement: "required" },
-  manifest: { label: "Manifest", requirement: "required" },
-  pilot: { label: "Pilot", requirement: "required" },
-  tandem_master: { label: "Tandem Master", requirement: "limiting" },
-  instructor: { label: "Instructor", requirement: "limiting" },
-  load_planner: { label: "Load Planner", requirement: "optional" },
+export const DEFAULT_ROLE_CONFIG: Record<AssignmentRole, RoleConfig> = {
+  sdl: { role: "sdl", label: "SDL", requirement: "required", minPerDay: 1, maxPerDay: 1 },
+  manifest: {
+    role: "manifest",
+    label: "Manifest",
+    requirement: "required",
+    minPerDay: 1,
+    maxPerDay: 1,
+  },
+  pilot: { role: "pilot", label: "Pilot", requirement: "required", minPerDay: 1, maxPerDay: null },
+  tandem_master: {
+    role: "tandem_master",
+    label: "Tandem Master",
+    requirement: "limiting",
+    minPerDay: 1,
+    maxPerDay: null,
+  },
+  instructor: {
+    role: "instructor",
+    label: "Instructor",
+    requirement: "limiting",
+    minPerDay: 1,
+    maxPerDay: null,
+  },
+  load_planner: {
+    role: "load_planner",
+    label: "Load Planner",
+    requirement: "optional",
+    minPerDay: 0,
+    maxPerDay: null,
+  },
 };
 
 export interface User {

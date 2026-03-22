@@ -47,6 +47,14 @@ const DDL = `
     expires_at INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS role_config (
+    role TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    requirement TEXT NOT NULL CHECK(requirement IN ('required', 'limiting', 'optional')),
+    min_per_day INTEGER NOT NULL DEFAULT 0,
+    max_per_day INTEGER
+  );
+
   CREATE TABLE IF NOT EXISTS passkey_credentials (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

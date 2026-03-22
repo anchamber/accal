@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, like } from "drizzle-orm";
+import { eq, and, like, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
@@ -119,6 +119,25 @@ jumpdays.post("/:id/signup", async (c) => {
 
   const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, jumpDayId)).get();
   if (!day) return c.json({ error: "Jump day not found" }, 404);
+
+  // Check max per day limit
+  const roleConf = db
+    .select()
+    .from(schema.roleConfig)
+    .where(eq(schema.roleConfig.role, body.role))
+    .get();
+  if (roleConf?.maxPerDay !== null && roleConf?.maxPerDay !== undefined) {
+    const currentCount = db
+      .select({ value: count() })
+      .from(schema.assignments)
+      .where(
+        and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.role, body.role)),
+      )
+      .get();
+    if (currentCount && currentCount.value >= roleConf.maxPerDay) {
+      return c.json({ error: "Maximum signups reached for this role" }, 409);
+    }
+  }
 
   // Check if this user is already signed up for this role on this day
   const existing = db

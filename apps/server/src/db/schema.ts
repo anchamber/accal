@@ -60,6 +60,14 @@ export const assignments = sqliteTable(
   ],
 );
 
+export const roleConfig = sqliteTable("role_config", {
+  role: text("role").primaryKey(),
+  label: text("label").notNull(),
+  requirement: text("requirement", { enum: ["required", "limiting", "optional"] }).notNull(),
+  minPerDay: integer("min_per_day").notNull().default(0),
+  maxPerDay: integer("max_per_day"), // null = unlimited
+});
+
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id")

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { ASSIGNMENT_ROLES, ASSIGNMENT_ROLE_CONFIG } from "@accal/shared";
   import type { JumpDay, AssignmentRole, Assignment } from "@accal/shared";
   import { signup, withdraw, updateJumpDay } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
+  import { getRoleConfigs, getRoleConfig } from "../lib/roles.svelte.ts";
 
   interface Props {
     jumpDay: JumpDay;
@@ -27,7 +27,13 @@
   }
 
   function canSignup(role: AssignmentRole): boolean {
-    return hasRole(role) && !isSignedUp(role);
+    if (!hasRole(role) || isSignedUp(role)) return false;
+    const config = getRoleConfig(role);
+    if (config.maxPerDay !== null) {
+      const current = assignmentsForRole(role).length;
+      if (current >= config.maxPerDay) return false;
+    }
+    return true;
   }
 
   async function handleSignup(role: AssignmentRole) {
@@ -104,8 +110,8 @@
       </div>
 
       <!-- Role Sections -->
-      {#each ASSIGNMENT_ROLES as role}
-        {@const config = ASSIGNMENT_ROLE_CONFIG[role]}
+      {#each getRoleConfigs() as config}
+        {@const role = config.role}
         {@const roleAssignments = assignmentsForRole(role)}
         <div class="section">
           <h4>

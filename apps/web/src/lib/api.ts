@@ -1,4 +1,11 @@
-import type { User, JumpDay, Role, AssignmentRole, PasskeyCredential } from "@accal/shared";
+import type {
+  User,
+  JumpDay,
+  Role,
+  AssignmentRole,
+  RoleConfig,
+  PasskeyCredential,
+} from "@accal/shared";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -68,6 +75,22 @@ export function updateUserRoles(userId: string, roles: Role[]): Promise<void> {
   return request(`/api/users/${userId}/roles`, {
     method: "PATCH",
     body: JSON.stringify({ roles }),
+  });
+}
+
+// --- Role Config ---
+
+export function fetchRoleConfig(): Promise<RoleConfig[]> {
+  return request("/api/roles/config");
+}
+
+export function updateRoleConfig(
+  role: AssignmentRole,
+  data: Partial<Omit<RoleConfig, "role">>,
+): Promise<RoleConfig> {
+  return request(`/api/roles/config/${role}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
   });
 }
 

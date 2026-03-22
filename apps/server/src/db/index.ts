@@ -3,6 +3,8 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { eq } from "drizzle-orm";
+import { DEFAULT_ROLE_CONFIG, ASSIGNMENT_ROLES } from "@accal/shared";
 import * as schema from "./schema.ts";
 
 // Resolve DB path: use env var, or default to <project-root>/data/accal.db
@@ -68,6 +70,14 @@ export function initDb() {
       expires_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS role_config (
+      role TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      requirement TEXT NOT NULL CHECK(requirement IN ('required', 'limiting', 'optional')),
+      min_per_day INTEGER NOT NULL DEFAULT 0,
+      max_per_day INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS passkey_credentials (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -79,6 +89,29 @@ export function initDb() {
     );
   `;
   sqlite.exec(ddl);
+
+  // Seed default role config for any missing roles
+  const dbInstance = drizzle(sqlite, { schema });
+  for (const role of ASSIGNMENT_ROLES) {
+    const existing = dbInstance
+      .select()
+      .from(schema.roleConfig)
+      .where(eq(schema.roleConfig.role, role))
+      .get();
+    if (!existing) {
+      const defaults = DEFAULT_ROLE_CONFIG[role];
+      dbInstance
+        .insert(schema.roleConfig)
+        .values({
+          role,
+          label: defaults.label,
+          requirement: defaults.requirement,
+          minPerDay: defaults.minPerDay,
+          maxPerDay: defaults.maxPerDay,
+        })
+        .run();
+    }
+  }
 }
 
 export { schema };
