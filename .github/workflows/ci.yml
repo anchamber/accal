@@ -17,20 +17,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v5
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 22
-          cache: pnpm
+          node-version: "22"
+          cache: true
 
-      - run: pnpm install --frozen-lockfile
-
+      - run: vp install
       - name: Lint & Type Check
-        run: pnpm exec vp check
-
+        run: vp check
       - name: Run Tests
-        run: pnpm exec vp test
+        run: vp test
 
   security:
     name: Security Audit
@@ -38,17 +34,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v5
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 22
-          cache: pnpm
+          node-version: "22"
+          cache: true
 
-      - run: pnpm install --frozen-lockfile
+      - run: vp install
 
       - name: Audit dependencies
-        run: pnpm audit --prod
+        run: vp pm audit --prod
 
       - name: CodeQL Analysis
         uses: github/codeql-action/init@v4
