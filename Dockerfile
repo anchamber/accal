@@ -8,7 +8,8 @@ COPY apps/web/package.json ./apps/web/
 COPY apps/server/package.json ./apps/server/
 COPY packages/shared/package.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts && \
+    pnpm rebuild better-sqlite3 esbuild
 
 # Stage 2: Build frontend
 FROM deps AS build-web
@@ -32,7 +33,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/server/package.json ./apps/server/
 COPY packages/shared/package.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts && \
+    pnpm rebuild better-sqlite3
 
 COPY --from=build-web /app/apps/web/dist ./public
 COPY --from=build-server /app/apps/server/dist ./dist
