@@ -88,8 +88,8 @@
       <table>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Email</th>
+            <th class="col-name">Name</th>
+            <th class="col-email">Email</th>
             <th>Roles</th>
           </tr>
         </thead>

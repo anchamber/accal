@@ -486,6 +486,18 @@ textarea {
   margin-bottom: 1.5rem;
 }
 
+.admin-page table {
+  table-layout: fixed;
+}
+
+.col-name {
+  width: 180px;
+}
+
+.col-email {
+  width: 220px;
+}
+
 .table-wrapper {
   overflow-x: auto;
 }
