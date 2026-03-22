@@ -34,6 +34,7 @@
       const credential = await startAuthentication({ optionsJSON: options });
       await verifyPasskeyLogin(credential);
       await checkAuth();
+      window.location.hash = "/";
     } catch (err) {
       if (!(err instanceof Error && err.name === "NotAllowedError")) {
         toastError(err instanceof Error ? err.message : "Passkey authentication failed");
