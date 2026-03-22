@@ -32,7 +32,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/server/package.json ./apps/server/
 COPY packages/shared/package.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts && \
+    pnpm rebuild better-sqlite3
 
 COPY --from=build-web /app/apps/web/dist ./public
 COPY --from=build-server /app/apps/server/dist ./dist
