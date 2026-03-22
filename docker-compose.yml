@@ -1,0 +1,17 @@
+services:
+  accal:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - accal-data:/data
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_PATH: /data/accal.db
+    restart: unless-stopped
+
+volumes:
+  accal-data:
