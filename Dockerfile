@@ -1,7 +1,6 @@
 # Stage 1: Install dependencies
 FROM node:22-slim AS deps
 WORKDIR /app
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 RUN corepack enable pnpm
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -9,7 +8,8 @@ COPY apps/web/package.json ./apps/web/
 COPY apps/server/package.json ./apps/server/
 COPY packages/shared/package.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts && \
+    pnpm rebuild better-sqlite3 esbuild
 
 # Stage 2: Build frontend
 FROM deps AS build-web
