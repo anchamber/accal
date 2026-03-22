@@ -5,6 +5,7 @@ import * as v from "valibot";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
 import { parseBody } from "../middleware/validate.ts";
+import { sendCancellationEmail } from "../auth/email.ts";
 import { ASSIGNMENT_ROLES } from "@accal/shared";
 import type { JumpDay, Assignment, AssignmentRole } from "@accal/shared";
 
@@ -16,6 +17,10 @@ const CreateJumpDaySchema = v.object({
 const UpdateJumpDaySchema = v.object({
   date: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
   notes: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(2000)))),
+});
+
+const CancelSchema = v.object({
+  reason: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
 });
 
 const SignupSchema = v.object({
@@ -62,6 +67,8 @@ jumpdays.get("/", (c) => {
       id: day.id,
       date: day.date,
       notes: day.notes,
+      canceledAt: day.canceledAt?.toISOString() ?? null,
+      cancelReason: day.cancelReason,
       assignments,
     };
   });
@@ -90,7 +97,17 @@ jumpdays.post("/", requireRole("admin"), async (c) => {
     .values({ id, date: body.date, notes: body.notes ?? null })
     .run();
 
-  return c.json({ id, date: body.date, notes: body.notes ?? null, assignments: [] }, 201);
+  return c.json(
+    {
+      id,
+      date: body.date,
+      notes: body.notes ?? null,
+      canceledAt: null,
+      cancelReason: null,
+      assignments: [],
+    },
+    201,
+  );
 });
 
 // Update jump day (admin)
@@ -123,6 +140,65 @@ jumpdays.delete("/:id", requireRole("admin"), (c) => {
   return c.json({ ok: true });
 });
 
+// Cancel jump day (admin)
+jumpdays.post("/:id/cancel", requireRole("admin"), async (c) => {
+  const id = c.req.param("id")!;
+  const body = await parseBody(c, CancelSchema);
+  const reason = body?.reason?.trim() || null;
+
+  const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, id)).get();
+  if (!day) return c.json({ error: "Not found" }, 404);
+  if (day.canceledAt) return c.json({ error: "Already canceled" }, 400);
+
+  db.update(schema.jumpDays)
+    .set({ canceledAt: new Date(), cancelReason: reason })
+    .where(eq(schema.jumpDays.id, id))
+    .run();
+
+  // Notify assigned users via email (fire-and-forget)
+  const dayAssignments = db
+    .select()
+    .from(schema.assignments)
+    .where(eq(schema.assignments.jumpDayId, id))
+    .all();
+
+  for (const assignment of dayAssignments) {
+    const assignedUser = db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, assignment.userId))
+      .get();
+    if (assignedUser?.email && !assignedUser.deletedAt) {
+      sendCancellationEmail(
+        assignedUser.email,
+        assignedUser.name,
+        day.date,
+        assignment.role,
+        reason,
+      ).catch((err) =>
+        console.error(`Failed to send cancellation email to ${assignedUser.email}:`, err),
+      );
+    }
+  }
+
+  return c.json({ ok: true });
+});
+
+// Reinstate canceled jump day (admin)
+jumpdays.post("/:id/reinstate", requireRole("admin"), (c) => {
+  const id = c.req.param("id")!;
+  const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, id)).get();
+  if (!day) return c.json({ error: "Not found" }, 404);
+  if (!day.canceledAt) return c.json({ error: "Not canceled" }, 400);
+
+  db.update(schema.jumpDays)
+    .set({ canceledAt: null, cancelReason: null })
+    .where(eq(schema.jumpDays.id, id))
+    .run();
+
+  return c.json({ ok: true });
+});
+
 // Sign up for a role
 jumpdays.post("/:id/signup", async (c) => {
   const jumpDayId = c.req.param("id")!;
@@ -140,6 +216,7 @@ jumpdays.post("/:id/signup", async (c) => {
 
   const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, jumpDayId)).get();
   if (!day) return c.json({ error: "Jump day not found" }, 404);
+  if (day.canceledAt) return c.json({ error: "Jump day is canceled" }, 400);
 
   // Check max per day limit
   const roleConf = db

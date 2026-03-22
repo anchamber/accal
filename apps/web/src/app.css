@@ -166,6 +166,15 @@ body {
   background: var(--danger-hover);
 }
 
+.btn-warning {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: #000;
+}
+.btn-warning:hover {
+  background: #ca8a04;
+}
+
 .btn-group {
   display: flex;
   gap: 0.5rem;
@@ -361,6 +370,17 @@ textarea {
   border-color: var(--primary-hover);
 }
 
+.calendar-cell.canceled {
+  opacity: 0.6;
+  text-decoration: line-through;
+  border-color: var(--text-muted);
+  border-style: dashed;
+}
+
+.calendar-cell.canceled .status-bar {
+  background: var(--text-muted);
+}
+
 .calendar-cell.today {
   border-color: var(--primary);
 }
@@ -466,6 +486,31 @@ textarea {
   width: 24px;
   height: 24px;
   border-radius: 50%;
+}
+
+.cancel-reason-banner {
+  padding: 0.5rem 1.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.cancel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.canceled-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+  margin-left: 0.5rem;
 }
 
 .req-badge {

@@ -48,6 +48,8 @@ export function initDb() {
       id TEXT PRIMARY KEY,
       date TEXT NOT NULL UNIQUE,
       notes TEXT,
+      canceled_at INTEGER,
+      cancel_reason TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
@@ -95,6 +97,14 @@ export function initDb() {
   const columns = sqlite.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!columns.some((c) => c.name === "deleted_at")) {
     sqlite.exec("ALTER TABLE users ADD COLUMN deleted_at INTEGER");
+  }
+
+  const jdColumns = sqlite.prepare("PRAGMA table_info(jump_days)").all() as { name: string }[];
+  if (!jdColumns.some((c) => c.name === "canceled_at")) {
+    sqlite.exec("ALTER TABLE jump_days ADD COLUMN canceled_at INTEGER");
+  }
+  if (!jdColumns.some((c) => c.name === "cancel_reason")) {
+    sqlite.exec("ALTER TABLE jump_days ADD COLUMN cancel_reason TEXT");
   }
 
   // Seed default role config for any missing roles

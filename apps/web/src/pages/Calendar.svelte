@@ -209,11 +209,12 @@
           class="calendar-cell"
           class:has-jumpday={!!jd}
           class:clickable={!!jd || hasRole("admin")}
-          class:status-full={jd && getStatus(jd) === "full"}
-          class:status-partial={jd && getStatus(jd) === "partial"}
-          class:status-empty={jd && getStatus(jd) === "empty"}
+          class:canceled={jd && !!jd.canceledAt}
+          class:status-full={jd && !jd.canceledAt && getStatus(jd) === "full"}
+          class:status-partial={jd && !jd.canceledAt && getStatus(jd) === "partial"}
+          class:status-empty={jd && !jd.canceledAt && getStatus(jd) === "empty"}
           class:today={dateStr(day) === new Date().toISOString().split("T")[0]}
-          title={jd ? getTooltip(jd) : ""}
+          title={jd ? (jd.canceledAt ? `Canceled${jd.cancelReason ? `: ${jd.cancelReason}` : ""}` : getTooltip(jd)) : ""}
           onclick={() => openDay(day)}
         >
           <span class="day-number">{day}</span>

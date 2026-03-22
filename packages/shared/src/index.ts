@@ -84,6 +84,8 @@ export interface JumpDay {
   id: string;
   date: string; // YYYY-MM-DD
   notes: string | null;
+  canceledAt: string | null;
+  cancelReason: string | null;
   assignments: Assignment[];
 }
 

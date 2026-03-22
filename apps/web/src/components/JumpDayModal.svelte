@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { JumpDay, AssignmentRole, Assignment } from "@accal/shared";
-  import { signup, withdraw, updateJumpDay } from "../lib/api.ts";
+  import { signup, withdraw, updateJumpDay, cancelJumpDay, reinstateJumpDay } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
   import { toastError } from "../lib/toast.svelte.ts";
   import { getRoleConfigs, getRoleConfig } from "../lib/roles.svelte.ts";
@@ -27,7 +27,10 @@
     return jumpDay.assignments.some((a) => a.role === role && a.user.id === user?.id);
   }
 
+  const isCanceled = $derived(!!jumpDay.canceledAt);
+
   function canSignup(role: AssignmentRole): boolean {
+    if (isCanceled) return false;
     if (!hasRole(role) || isSignedUp(role)) return false;
     const config = getRoleConfig(role);
     if (config.maxPerDay !== null) {
@@ -65,6 +68,29 @@
     }
   }
 
+  let showCancelForm = $state(false);
+  let cancelReason = $state("");
+
+  async function handleCancel() {
+    try {
+      await cancelJumpDay(jumpDay.id, cancelReason.trim() || undefined);
+      showCancelForm = false;
+      cancelReason = "";
+      await onrefresh();
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  }
+
+  async function handleReinstate() {
+    try {
+      await reinstateJumpDay(jumpDay.id);
+      await onrefresh();
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  }
+
   function formatDate(dateStr: string): string {
     return new Date(dateStr + "T00:00:00").toLocaleDateString("default", {
       weekday: "long",
@@ -80,9 +106,20 @@
 <div class="modal-backdrop" onclick={onclose}>
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <div class="modal-header">
-      <h3>{formatDate(jumpDay.date)}</h3>
+      <h3>
+        {formatDate(jumpDay.date)}
+        {#if isCanceled}
+          <span class="canceled-badge">Canceled</span>
+        {/if}
+      </h3>
       <button class="btn btn-sm" onclick={onclose}>X</button>
     </div>
+
+    {#if isCanceled && jumpDay.cancelReason}
+      <div class="cancel-reason-banner">
+        Reason: {jumpDay.cancelReason}
+      </div>
+    {/if}
 
     <div class="modal-body">
       <!-- Notes -->
@@ -146,6 +183,27 @@
 
       {#if hasRole("admin")}
         <div class="section danger-zone">
+          {#if isCanceled}
+            <button class="btn btn-primary" onclick={handleReinstate}>
+              Reinstate Jump Day
+            </button>
+          {:else if showCancelForm}
+            <div class="cancel-form">
+              <textarea
+                bind:value={cancelReason}
+                placeholder="Reason for cancellation (optional)"
+                rows="2"
+              ></textarea>
+              <div class="btn-group">
+                <button class="btn btn-warning" onclick={handleCancel}>Confirm Cancel</button>
+                <button class="btn btn-sm" onclick={() => { showCancelForm = false; cancelReason = ""; }}>Back</button>
+              </div>
+            </div>
+          {:else}
+            <button class="btn btn-warning" onclick={() => { showCancelForm = true; }}>
+              Cancel Jump Day
+            </button>
+          {/if}
           <button class="btn btn-danger" onclick={() => ondelete(jumpDay.id)}>
             Delete Jump Day
           </button>

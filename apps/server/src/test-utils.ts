@@ -26,6 +26,8 @@ const DDL = `
     id TEXT PRIMARY KEY,
     date TEXT NOT NULL UNIQUE,
     notes TEXT,
+    canceled_at INTEGER,
+    cancel_reason TEXT,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
 

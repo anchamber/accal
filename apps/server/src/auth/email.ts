@@ -19,6 +19,44 @@ function getTransporter(): nodemailer.Transporter {
   return _transporter;
 }
 
+export async function sendCancellationEmail(
+  email: string,
+  userName: string,
+  date: string,
+  role: string,
+  reason?: string | null,
+): Promise<void> {
+  const from = process.env.SMTP_FROM || "accal <noreply@localhost>";
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("default", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const reasonText = reason ? `\n\nReason: ${reason}` : "";
+  const reasonHtml = reason ? `<p>Reason: <em>${reason}</em></p>` : "";
+
+  await getTransporter().sendMail({
+    from,
+    to: email,
+    subject: `Jump day canceled: ${formattedDate}`,
+    text: `Hi ${userName},\n\nThe jump day on ${formattedDate} has been canceled.${reasonText}\n\nYou were signed up as: ${role}\n\nIf the day is reinstated, your signup will still be in place.`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">
+        <h2 style="color: #ef4444;">Jump Day Canceled</h2>
+        <p>Hi ${userName},</p>
+        <p>The jump day on <strong>${formattedDate}</strong> has been canceled.</p>
+        ${reasonHtml}
+        <p>You were signed up as: <strong>${role}</strong></p>
+        <p style="color: #666; font-size: 0.875rem; margin-top: 1.5rem;">
+          If the day is reinstated, your signup will still be in place.
+        </p>
+      </div>
+    `,
+  });
+}
+
 export async function sendMagicLinkEmail(email: string, token: string): Promise<void> {
   const baseUrl = process.env.OAUTH_REDIRECT_BASE || "http://localhost:3000";
   const magicLinkUrl = `${baseUrl}/api/auth/magic-link/verify?token=${token}`;

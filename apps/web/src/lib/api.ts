@@ -53,6 +53,17 @@ export function deleteJumpDay(id: string): Promise<void> {
   return request(`/api/jumpdays/${id}`, { method: "DELETE" });
 }
 
+export function cancelJumpDay(jumpDayId: string, reason?: string): Promise<void> {
+  return request(`/api/jumpdays/${jumpDayId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason || null }),
+  });
+}
+
+export function reinstateJumpDay(jumpDayId: string): Promise<void> {
+  return request(`/api/jumpdays/${jumpDayId}/reinstate`, { method: "POST" });
+}
+
 export function signup(jumpDayId: string, role: AssignmentRole): Promise<void> {
   return request(`/api/jumpdays/${jumpDayId}/signup`, {
     method: "POST",

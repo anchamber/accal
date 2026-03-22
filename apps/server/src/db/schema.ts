@@ -38,6 +38,8 @@ export const jumpDays = sqliteTable("jump_days", {
   id: text("id").primaryKey(),
   date: text("date").notNull().unique(),
   notes: text("notes"),
+  canceledAt: integer("canceled_at", { mode: "timestamp" }),
+  cancelReason: text("cancel_reason"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),

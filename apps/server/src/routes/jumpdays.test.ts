@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
+import { eq } from "drizzle-orm";
 import { createTestDb, seedTestUser, seedTestUserWithRoles } from "../test-utils.ts";
 
 // Set up test DB mock
@@ -14,6 +15,10 @@ vi.mock("../db/index.ts", () => {
 // Mock session validation to return a controlled session
 let activeUserId = "test-user-1";
 
+vi.mock("../auth/email.ts", () => ({
+  sendCancellationEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../auth/session.ts", () => ({
   createSession: vi.fn(),
   validateSession: vi.fn((id: string) => {
@@ -27,12 +32,14 @@ vi.mock("../auth/session.ts", () => ({
     return null;
   }),
   deleteSession: vi.fn(),
+  deleteAllUserSessions: vi.fn(),
   cleanExpiredData: vi.fn(),
   startCleanupSchedule: vi.fn(),
 }));
 
 const { default: jumpdayRoutes } = await import("./jumpdays.ts");
 const { schema } = await import("../db/index.ts");
+const { sendCancellationEmail } = await import("../auth/email.ts");
 
 import { Hono } from "hono";
 
@@ -59,6 +66,7 @@ describe("jumpdays routes", () => {
     db.delete(schema.sessions).run();
     db.delete(schema.users).run();
     activeUserId = "test-user-1";
+    vi.clearAllMocks();
 
     // Seed an admin user with all roles
     seedTestUserWithRoles(db, [
@@ -664,6 +672,285 @@ describe("jumpdays routes", () => {
         }),
       );
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("POST /api/jumpdays/:id/cancel", () => {
+    it("cancels a jump day (sets canceledAt)", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/cancel", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      const updated = db.select().from(schema.jumpDays).all();
+      expect(updated[0]!.canceledAt).not.toBeNull();
+    });
+
+    it("stores cancel reason when provided", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/cancel", {
+          method: "POST",
+          body: JSON.stringify({ reason: "Bad weather" }),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      const updated = db.select().from(schema.jumpDays).all();
+      expect(updated[0]!.cancelReason).toBe("Bad weather");
+    });
+
+    it("returns 404 for non-existent jump day", async () => {
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/fake-id/cancel", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 400 when already canceled", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays)
+        .values({ id: "jd-c", date: "2026-03-15", canceledAt: new Date() })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-c/cancel", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 403 for non-admin", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "test-user-nonadmin",
+        email: "nonadmin@example.com",
+        name: "Non Admin",
+        oauthProvider: "google",
+        oauthId: "999",
+      });
+      activeUserId = "test-user-nonadmin";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/cancel", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("returns 401 without auth", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/jd-1/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("sends cancellation email to assigned users", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // Create an assigned user
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "test-user-assigned",
+        email: "assigned@example.com",
+        name: "Assigned User",
+        oauthProvider: "github",
+        oauthId: "555",
+      });
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-assigned", role: "pilot" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/cancel", {
+          method: "POST",
+          body: JSON.stringify({ reason: "High winds" }),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      // Wait for fire-and-forget promise
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(sendCancellationEmail).toHaveBeenCalledWith(
+        "assigned@example.com",
+        "Assigned User",
+        "2026-03-15",
+        "pilot",
+        "High winds",
+      );
+    });
+
+    it("does not send email to deleted users", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // Create a deleted user with assignment
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "test-user-deleted",
+        email: "deleted@example.com",
+        name: "Deleted User",
+        oauthProvider: "github",
+        oauthId: "666",
+      });
+      db.update(schema.users)
+        .set({ deletedAt: new Date() })
+        .where(eq(schema.users.id, "test-user-deleted"))
+        .run();
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-deleted", role: "pilot" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/cancel", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      // Wait for fire-and-forget promise
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(sendCancellationEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /api/jumpdays/:id/reinstate", () => {
+    it("reinstates a canceled jump day (clears canceledAt and cancelReason)", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays)
+        .values({
+          id: "jd-c",
+          date: "2026-03-15",
+          canceledAt: new Date(),
+          cancelReason: "Bad weather",
+        })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-c/reinstate", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      const updated = db.select().from(schema.jumpDays).all();
+      expect(updated[0]!.canceledAt).toBeNull();
+      expect(updated[0]!.cancelReason).toBeNull();
+    });
+
+    it("returns 404 for non-existent jump day", async () => {
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/fake-id/reinstate", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 400 when not canceled", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/reinstate", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 403 for non-admin", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays)
+        .values({ id: "jd-c", date: "2026-03-15", canceledAt: new Date() })
+        .run();
+
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "test-user-nonadmin",
+        email: "nonadmin@example.com",
+        name: "Non Admin",
+        oauthProvider: "google",
+        oauthId: "999",
+      });
+      activeUserId = "test-user-nonadmin";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-c/reinstate", {
+          method: "POST",
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("returns 401 without auth", async () => {
+      const app = createApp();
+      const res = await app.request(
+        new Request("http://localhost/api/jumpdays/jd-1/reinstate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("signup on canceled day", () => {
+    it("returns 400 when trying to sign up on a canceled jump day", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays)
+        .values({ id: "jd-c", date: "2026-03-15", canceledAt: new Date() })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-c/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBe("Jump day is canceled");
     });
   });
 
