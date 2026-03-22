@@ -66,6 +66,31 @@
     return "full";
   }
 
+  function getTooltip(jd: JumpDay): string {
+    const configs = getRoleConfigs();
+    const assignmentCounts = new Map<string, number>();
+    for (const a of jd.assignments) {
+      assignmentCounts.set(a.role, (assignmentCounts.get(a.role) ?? 0) + 1);
+    }
+
+    const missingRequired = configs
+      .filter((c) => c.requirement === "required" && (assignmentCounts.get(c.role) ?? 0) < c.minPerDay)
+      .map((c) => c.label);
+    const missingLimiting = configs
+      .filter((c) => c.requirement === "limiting" && (assignmentCounts.get(c.role) ?? 0) < c.minPerDay)
+      .map((c) => c.label);
+
+    if (missingRequired.length > 0) {
+      const parts = [`Missing required: ${missingRequired.join(", ")}`];
+      if (missingLimiting.length > 0) parts.push(`Missing limiting: ${missingLimiting.join(", ")}`);
+      return parts.join("\n");
+    }
+    if (missingLimiting.length > 0) {
+      return `Missing limiting: ${missingLimiting.join(", ")}`;
+    }
+    return "All roles filled";
+  }
+
   async function loadJumpDays() {
     try {
       jumpDays = await fetchJumpDays(monthStr);
@@ -165,7 +190,7 @@
           <span class="day-number">{day}</span>
           {#if jd}
             <div class="jumpday-indicator">
-              <span class="dot" title={getStatus(jd)}></span>
+              <span class="dot" title={getTooltip(jd)}></span>
             </div>
           {/if}
         </button>
