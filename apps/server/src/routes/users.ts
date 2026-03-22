@@ -55,14 +55,12 @@ users.patch("/:id/roles", requireRole("admin"), async (c) => {
   const willHaveAdmin = roles.includes("admin");
 
   if (hadAdmin && !willHaveAdmin) {
-    const adminCount = db
+    const allAdminRoles = db
       .select()
       .from(schema.userRoles)
-      .where(
-        eq(schema.userRoles.role, "admin" as (typeof schema.userRoles.role.enumValues)[number]),
-      )
-      .all().length;
-    if (adminCount <= 1) {
+      .all()
+      .filter((r) => r.role === "admin");
+    if (allAdminRoles.length <= 1) {
       return c.json({ error: "Cannot remove the last admin" }, 400);
     }
   }
