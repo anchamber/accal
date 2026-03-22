@@ -1,3 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <text y="28" font-size="28">🪂</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Parachute canopy -->
+  <path d="M10 28C10 16 22 6 32 6C42 6 54 16 54 28" stroke="#6366f1" stroke-width="3" stroke-linecap="round" fill="rgba(99,102,241,0.15)"/>
+  <!-- Canopy segments -->
+  <path d="M18 26C18 18 24 10 32 10" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <path d="M32 10C40 10 46 18 46 26" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <path d="M32 6V10" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <!-- Lines from canopy to jumper -->
+  <line x1="10" y1="28" x2="28" y2="44" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="54" y1="28" x2="36" y2="44" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="18" y1="26" x2="30" y2="44" stroke="#6366f1" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+  <line x1="46" y1="26" x2="34" y2="44" stroke="#6366f1" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+  <!-- Jumper body -->
+  <circle cx="32" cy="44" r="3" fill="#6366f1"/>
+  <line x1="32" y1="47" x2="32" y2="55" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Arms -->
+  <line x1="26" y1="50" x2="38" y2="50" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/>
+  <!-- Legs -->
+  <line x1="32" y1="55" x2="27" y2="61" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/>
+  <line x1="32" y1="55" x2="37" y2="61" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/>
 </svg>

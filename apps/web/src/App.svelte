@@ -7,6 +7,7 @@
   import Admin from "./pages/Admin.svelte";
   import Account from "./pages/Account.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
+  import Logo from "./components/Logo.svelte";
 
   checkAuth().then(() => loadRoleConfig());
 </script>
@@ -22,7 +23,7 @@
 {:else}
   <nav class="navbar">
     <div class="nav-left">
-      <button class="nav-brand" onclick={() => navigate("/")}>accal</button>
+      <button class="nav-brand" onclick={() => navigate("/")}><Logo size={24} /></button>
       <button
         class="nav-link"
         class:active={getRoute() === "/" || getRoute() === ""}

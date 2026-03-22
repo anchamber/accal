@@ -3,6 +3,7 @@
   import { sendMagicLink, getPasskeyLoginOptions, verifyPasskeyLogin } from "../lib/api.ts";
   import { checkAuth } from "../lib/auth.svelte.ts";
   import { toastError } from "../lib/toast.svelte.ts";
+  import Logo from "../components/Logo.svelte";
 
   const googleEnabled = true;
   const githubEnabled = true;
@@ -47,6 +48,7 @@
 
 <div class="login-page">
   <div class="login-card">
+    <div class="login-logo"><Logo size={64} /></div>
     <h1>accal</h1>
     <p class="subtitle">Dropzone Calendar</p>
 
