@@ -518,6 +518,25 @@ textarea {
   width: 220px;
 }
 
+.col-actions {
+  width: 80px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.delete-preview-list {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .table-wrapper {
   overflow-x: auto;
 }

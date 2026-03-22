@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { eq, and, gte } from "drizzle-orm";
 import * as v from "valibot";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
@@ -97,6 +97,82 @@ users.patch("/:id/roles", requireRole("admin"), async (c) => {
   }
 
   return c.json({ ok: true, roles });
+});
+
+// Preview deletion impact (admin)
+users.get("/:id/delete-preview", requireRole("admin"), (c) => {
+  const userId = c.req.param("id")!;
+  const authUser = c.get("user");
+
+  if (userId === authUser.id) {
+    return c.json({ error: "Cannot delete yourself" }, 400);
+  }
+
+  const user = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
+  if (!user) return c.json({ error: "User not found" }, 404);
+
+  const isAdmin = db
+    .select()
+    .from(schema.userRoles)
+    .where(and(eq(schema.userRoles.userId, userId), eq(schema.userRoles.role, "admin")))
+    .get();
+
+  if (isAdmin) {
+    const adminCount = db
+      .select()
+      .from(schema.userRoles)
+      .all()
+      .filter((r) => r.role === "admin").length;
+    if (adminCount <= 1) {
+      return c.json({ error: "Cannot delete the last admin" }, 400);
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const futureAssignments = db
+    .select({
+      date: schema.jumpDays.date,
+      role: schema.assignments.role,
+    })
+    .from(schema.assignments)
+    .innerJoin(schema.jumpDays, eq(schema.assignments.jumpDayId, schema.jumpDays.id))
+    .where(and(eq(schema.assignments.userId, userId), gte(schema.jumpDays.date, today)))
+    .all();
+
+  return c.json({ futureAssignments });
+});
+
+// Delete user (admin)
+users.delete("/:id", requireRole("admin"), (c) => {
+  const userId = c.req.param("id")!;
+  const authUser = c.get("user");
+
+  if (userId === authUser.id) {
+    return c.json({ error: "Cannot delete yourself" }, 400);
+  }
+
+  const user = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
+  if (!user) return c.json({ error: "User not found" }, 404);
+
+  const isAdmin = db
+    .select()
+    .from(schema.userRoles)
+    .where(and(eq(schema.userRoles.userId, userId), eq(schema.userRoles.role, "admin")))
+    .get();
+
+  if (isAdmin) {
+    const adminCount = db
+      .select()
+      .from(schema.userRoles)
+      .all()
+      .filter((r) => r.role === "admin").length;
+    if (adminCount <= 1) {
+      return c.json({ error: "Cannot delete the last admin" }, 400);
+    }
+  }
+
+  db.delete(schema.users).where(eq(schema.users.id, userId)).run();
+  return c.json({ ok: true });
 });
 
 export default users;

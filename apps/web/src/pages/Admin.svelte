@@ -1,7 +1,14 @@
 <script lang="ts">
   import type { User, Role, RoleConfig } from "@accal/shared";
   import { ROLES } from "@accal/shared";
-  import { fetchUsers, updateUserRoles, updateRoleConfig } from "../lib/api.ts";
+  import {
+    fetchUsers,
+    updateUserRoles,
+    updateRoleConfig,
+    deleteUserPreview,
+    deleteUser,
+  } from "../lib/api.ts";
+  import { getUser as getAuthUser } from "../lib/auth.svelte.ts";
   import { getRoleConfigs, getRoleConfig, refreshRoleConfig } from "../lib/roles.svelte.ts";
   import { toastSuccess, toastError } from "../lib/toast.svelte.ts";
 
@@ -73,6 +80,36 @@
     }
   }
 
+  let deleteTarget = $state<(User & { oauthProvider: string }) | null>(null);
+  let deletePreview = $state<{ date: string; role: string }[]>([]);
+  let deleteLoading = $state(false);
+
+  async function confirmDelete(user: User & { oauthProvider: string }) {
+    deleteLoading = true;
+    deleteTarget = user;
+    try {
+      const preview = await deleteUserPreview(user.id);
+      deletePreview = preview.futureAssignments;
+    } catch (e) {
+      toastError((e as Error).message);
+      deleteTarget = null;
+    } finally {
+      deleteLoading = false;
+    }
+  }
+
+  async function executeDelete() {
+    if (!deleteTarget) return;
+    try {
+      await deleteUser(deleteTarget.id);
+      toastSuccess(`Deleted ${deleteTarget.name}`);
+      users = users.filter((u) => u.id !== deleteTarget!.id);
+      deleteTarget = null;
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  }
+
   loadUsers();
 </script>
 
@@ -91,6 +128,7 @@
             <th class="col-name">Name</th>
             <th class="col-email">Email</th>
             <th>Roles</th>
+            <th class="col-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -118,6 +156,11 @@
                   <button class="btn btn-sm add-role-btn" onclick={(e) => { e.stopPropagation(); toggleDropdown(user.id, e); }}>+</button>
                 </div>
               </td>
+              <td>
+                {#if user.id !== getAuthUser()?.id}
+                  <button class="btn btn-sm btn-danger" onclick={() => confirmDelete(user)}>Delete</button>
+                {/if}
+              </td>
             </tr>
           {/each}
         </tbody>
@@ -140,6 +183,38 @@
         </div>
       {/if}
     {/if}
+  {/if}
+
+  {#if deleteTarget}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="modal-backdrop" onclick={() => { deleteTarget = null; }}>
+      <div class="modal" onclick={(e) => e.stopPropagation()}>
+        <div class="modal-header">
+          <h3>Delete {deleteTarget.name}?</h3>
+        </div>
+        <div class="modal-body">
+          {#if deleteLoading}
+            <p>Checking assignments...</p>
+          {:else if deletePreview.length > 0}
+            <p>This user is assigned to <strong>{deletePreview.length}</strong> upcoming jump day{deletePreview.length > 1 ? "s" : ""}. These slots will be freed:</p>
+            <ul class="delete-preview-list">
+              {#each deletePreview as a}
+                <li>{a.date} &mdash; {roleLabel(a.role as Role)}</li>
+              {/each}
+            </ul>
+          {:else}
+            <p>This user has no upcoming assignments.</p>
+          {/if}
+          {#if !deleteLoading}
+            <div class="modal-actions">
+              <button class="btn" onclick={() => { deleteTarget = null; }}>Cancel</button>
+              <button class="btn btn-danger" onclick={executeDelete}>Delete</button>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
   {/if}
 
   <h2 style="margin-top: 2rem;">Role Configuration</h2>

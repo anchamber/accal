@@ -91,6 +91,16 @@ export function updateMyName(name: string): Promise<{ ok: boolean; name: string 
   });
 }
 
+export function deleteUserPreview(
+  userId: string,
+): Promise<{ futureAssignments: { date: string; role: string }[] }> {
+  return request(`/api/users/${userId}/delete-preview`);
+}
+
+export function deleteUser(userId: string): Promise<void> {
+  return request(`/api/users/${userId}`, { method: "DELETE" });
+}
+
 export function fetchUsers(): Promise<(User & { oauthProvider: string })[]> {
   return request("/api/users");
 }
