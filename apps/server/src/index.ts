@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { initDb } from "./db/index.ts";
+import { startCleanupSchedule } from "./auth/session.ts";
 import authRoutes from "./routes/auth.ts";
 import magicLinkRoutes from "./routes/magic-link.ts";
 import passkeyRoutes from "./routes/passkey.ts";
@@ -11,6 +12,7 @@ import jumpdayRoutes from "./routes/jumpdays.ts";
 import userRoutes from "./routes/users.ts";
 
 initDb();
+startCleanupSchedule();
 
 const app = new Hono();
 

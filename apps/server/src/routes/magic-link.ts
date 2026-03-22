@@ -5,8 +5,12 @@ import { nanoid } from "nanoid";
 import { db, schema } from "../db/index.ts";
 import { createSession } from "../auth/session.ts";
 import { sendMagicLinkEmail } from "../auth/email.ts";
+import { rateLimit } from "../middleware/rate-limit.ts";
 
 const magicLink = new Hono();
+
+// 5 magic link emails per 15 minutes per IP
+magicLink.use("/send", rateLimit({ max: 5, windowMs: 15 * 60 * 1000 }));
 
 const TOKEN_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/index.ts";
 
@@ -26,8 +26,17 @@ export function deleteSession(sessionId: string) {
   db.delete(schema.sessions).where(eq(schema.sessions.id, sessionId)).run();
 }
 
-export function cleanExpiredSessions() {
-  db.delete(schema.sessions)
-    .where(eq(schema.sessions.expiresAt, new Date(0)))
-    .run();
+export function cleanExpiredData() {
+  const now = new Date();
+  db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, now)).run();
+  db.delete(schema.magicLinkTokens).where(lt(schema.magicLinkTokens.expiresAt, now)).run();
+}
+
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+export function startCleanupSchedule() {
+  // Run once on startup
+  cleanExpiredData();
+  // Then every hour
+  setInterval(cleanExpiredData, CLEANUP_INTERVAL_MS);
 }

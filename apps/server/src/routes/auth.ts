@@ -7,8 +7,13 @@ import { getGoogle, getGitHub } from "../auth/providers.ts";
 import { createSession, deleteSession } from "../auth/session.ts";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware } from "../middleware/auth.ts";
+import { rateLimit } from "../middleware/rate-limit.ts";
 
 const auth = new Hono();
+
+// 20 OAuth attempts per 15 minutes per IP
+auth.use("/login/*", rateLimit({ max: 20, windowMs: 15 * 60 * 1000 }));
+auth.use("/callback/*", rateLimit({ max: 20, windowMs: 15 * 60 * 1000 }));
 
 // --- Login redirect ---
 auth.get("/login/:provider", (c) => {

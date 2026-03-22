@@ -11,8 +11,13 @@ import type { AuthenticatorTransportFuture } from "@simplewebauthn/server";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware } from "../middleware/auth.ts";
 import { createSession } from "../auth/session.ts";
+import { rateLimit } from "../middleware/rate-limit.ts";
 
 const passkey = new Hono();
+
+// 10 passkey attempts per 15 minutes per IP
+passkey.use("/login-options", rateLimit({ max: 10, windowMs: 15 * 60 * 1000 }));
+passkey.use("/login-verify", rateLimit({ max: 10, windowMs: 15 * 60 * 1000 }));
 
 function getRpId(): string {
   return process.env.WEBAUTHN_RP_ID || "localhost";

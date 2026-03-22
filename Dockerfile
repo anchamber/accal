@@ -1,7 +1,7 @@
 # Stage 1: Install dependencies
 FROM node:22-slim AS deps
 WORKDIR /app
-RUN corepack enable pnpm
+RUN corepack enable pnpm && npm install -g @anthropic-ai/vite-plus
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
@@ -14,13 +14,13 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS build-web
 WORKDIR /app
 COPY . .
-RUN cd apps/web && npx vite build
+RUN cd apps/web && vp build
 
 # Stage 3: Build server
 FROM deps AS build-server
 WORKDIR /app
 COPY . .
-RUN cd apps/server && npx tsdown src/index.ts --format esm --platform node --target node22
+RUN cd apps/server && vp pack
 
 # Stage 4: Production
 FROM node:22-slim AS production
