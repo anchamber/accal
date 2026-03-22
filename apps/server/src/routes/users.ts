@@ -44,6 +44,29 @@ users.patch("/:id/roles", requireRole("admin"), async (c) => {
 
   const roles = body.roles.filter((r): r is Role => (ROLES as readonly string[]).includes(r));
 
+  // Check: if removing admin from this user, ensure at least one other admin remains
+  const currentRoles = db
+    .select()
+    .from(schema.userRoles)
+    .where(eq(schema.userRoles.userId, userId))
+    .all()
+    .map((r) => r.role);
+  const hadAdmin = currentRoles.includes("admin");
+  const willHaveAdmin = roles.includes("admin");
+
+  if (hadAdmin && !willHaveAdmin) {
+    const adminCount = db
+      .select()
+      .from(schema.userRoles)
+      .where(
+        eq(schema.userRoles.role, "admin" as (typeof schema.userRoles.role.enumValues)[number]),
+      )
+      .all().length;
+    if (adminCount <= 1) {
+      return c.json({ error: "Cannot remove the last admin" }, 400);
+    }
+  }
+
   // Replace all roles
   db.delete(schema.userRoles).where(eq(schema.userRoles.userId, userId)).run();
 
