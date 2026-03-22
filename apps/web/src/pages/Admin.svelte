@@ -115,7 +115,7 @@
                       </span>
                     {/each}
                   </div>
-                  <button class="btn btn-sm add-role-btn" onclick={(e) => toggleDropdown(user.id, e)}>+</button>
+                  <button class="btn btn-sm add-role-btn" onclick={(e) => { e.stopPropagation(); toggleDropdown(user.id, e); }}>+</button>
                 </div>
               </td>
             </tr>
