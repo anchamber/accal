@@ -343,11 +343,13 @@ textarea {
 
 .calendar-cell.has-jumpday {
   font-weight: 600;
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
 }
 
 .calendar-cell.has-jumpday:hover {
-  background: var(--bg-hover);
-  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.15);
+  border-color: var(--primary-hover);
 }
 
 .calendar-cell.today {
