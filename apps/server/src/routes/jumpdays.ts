@@ -231,13 +231,13 @@ jumpdays.post("/import", requireRole("admin"), async (c) => {
   return c.json({ created, skipped, total: dates.length });
 });
 
-interface IcalEvent {
+export interface IcalEvent {
   dtstart: string; // YYYY-MM-DD
   dtend: string | null; // YYYY-MM-DD (exclusive) or null
   summary: string | null;
 }
 
-function parseIcalEvents(ical: string): IcalEvent[] {
+export function parseIcalEvents(ical: string): IcalEvent[] {
   const events: IcalEvent[] = [];
   // Unfold lines (RFC 5545: continuation lines start with a space)
   const lines = ical.replace(/\r\n /g, "").replace(/\r/g, "\n").split("\n");
@@ -281,7 +281,7 @@ function parseIcalDate(line: string): string {
   return "";
 }
 
-function expandEventDates(events: IcalEvent[]): { date: string; summary: string | null }[] {
+export function expandEventDates(events: IcalEvent[]): { date: string; summary: string | null }[] {
   const result: { date: string; summary: string | null }[] = [];
   const seen = new Set<string>();
 
