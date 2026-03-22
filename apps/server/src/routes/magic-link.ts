@@ -83,6 +83,10 @@ magicLink.get("/verify", async (c) => {
   // Find or create user by email
   let user = db.select().from(schema.users).where(eq(schema.users.email, email)).get();
 
+  if (user?.deletedAt) {
+    return c.redirect("/#/login?error=account-deleted");
+  }
+
   if (!user) {
     const id = nanoid();
     const name = email.split("@")[0]!;

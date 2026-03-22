@@ -172,6 +172,16 @@ passkey.post("/login-verify", async (c) => {
     return c.json({ error: "Authentication failed" }, 400);
   }
 
+  // Check if user account has been deleted
+  const passkeyUser = db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.id, storedCredential.userId))
+    .get();
+  if (!passkeyUser || passkeyUser.deletedAt) {
+    return c.json({ error: "Authentication failed" }, 400);
+  }
+
   const verification = await verifyAuthenticationResponse({
     response: body,
     expectedChallenge: challenge,

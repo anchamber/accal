@@ -32,7 +32,7 @@ export async function authMiddleware(c: Context, next: Next) {
 
   const user = db.select().from(schema.users).where(eq(schema.users.id, session.userId)).get();
 
-  if (!user) {
+  if (!user || user.deletedAt) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 

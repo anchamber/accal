@@ -1,8 +1,10 @@
 import { Hono } from "hono";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, isNull } from "drizzle-orm";
 import * as v from "valibot";
+import { nanoid } from "nanoid";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
+import { deleteAllUserSessions } from "../auth/session.ts";
 import { parseBody } from "../middleware/validate.ts";
 import { ROLES } from "@accal/shared";
 import type { Role } from "@accal/shared";
@@ -32,7 +34,7 @@ users.patch("/me/name", async (c) => {
 
 // List all users (admin)
 users.get("/", requireRole("admin"), (c) => {
-  const allUsers = db.select().from(schema.users).all();
+  const allUsers = db.select().from(schema.users).where(isNull(schema.users.deletedAt)).all();
 
   const result = allUsers.map((u) => {
     const roles = db
@@ -142,7 +144,7 @@ users.get("/:id/delete-preview", requireRole("admin"), (c) => {
   return c.json({ futureAssignments });
 });
 
-// Delete user (admin)
+// Delete user (admin) — anonymizes PII, keeps record for past assignments
 users.delete("/:id", requireRole("admin"), (c) => {
   const userId = c.req.param("id")!;
   const authUser = c.get("user");
@@ -153,6 +155,7 @@ users.delete("/:id", requireRole("admin"), (c) => {
 
   const user = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
   if (!user) return c.json({ error: "User not found" }, 404);
+  if (user.deletedAt) return c.json({ error: "User already deleted" }, 400);
 
   const isAdmin = db
     .select()
@@ -171,7 +174,41 @@ users.delete("/:id", requireRole("admin"), (c) => {
     }
   }
 
-  db.delete(schema.users).where(eq(schema.users.id, userId)).run();
+  // Anonymize PII
+  db.update(schema.users)
+    .set({
+      name: "Deleted User",
+      email: `deleted-${nanoid()}@deleted.local`,
+      avatarUrl: null,
+      oauthProvider: null,
+      oauthId: null,
+      deletedAt: new Date(),
+    })
+    .where(eq(schema.users.id, userId))
+    .run();
+
+  // Remove roles, sessions, passkeys
+  db.delete(schema.userRoles).where(eq(schema.userRoles.userId, userId)).run();
+  deleteAllUserSessions(userId);
+  db.delete(schema.passkeyCredentials).where(eq(schema.passkeyCredentials.userId, userId)).run();
+
+  // Remove future assignments (free slots), keep past ones
+  const today = new Date().toISOString().slice(0, 10);
+  const futureJumpDayIds = db
+    .select({ id: schema.jumpDays.id })
+    .from(schema.jumpDays)
+    .where(gte(schema.jumpDays.date, today))
+    .all()
+    .map((d) => d.id);
+
+  for (const jumpDayId of futureJumpDayIds) {
+    db.delete(schema.assignments)
+      .where(
+        and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.userId, userId)),
+      )
+      .run();
+  }
+
   return c.json({ ok: true });
 });
 

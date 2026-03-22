@@ -31,6 +31,7 @@ export function initDb() {
       avatar_url TEXT,
       oauth_provider TEXT,
       oauth_id TEXT,
+      deleted_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
     CREATE UNIQUE INDEX IF NOT EXISTS users_oauth_idx ON users(oauth_provider, oauth_id);
@@ -89,6 +90,12 @@ export function initDb() {
     );
   `;
   sqlite.exec(ddl);
+
+  // Migrations for existing databases
+  const columns = sqlite.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  if (!columns.some((c) => c.name === "deleted_at")) {
+    sqlite.exec("ALTER TABLE users ADD COLUMN deleted_at INTEGER");
+  }
 
   // Seed default role config for any missing roles
   const dbInstance = drizzle(sqlite, { schema });

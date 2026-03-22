@@ -10,6 +10,7 @@ export const users = sqliteTable(
     avatarUrl: text("avatar_url"),
     oauthProvider: text("oauth_provider"),
     oauthId: text("oauth_id"),
+    deletedAt: integer("deleted_at", { mode: "timestamp" }),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),

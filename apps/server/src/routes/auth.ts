@@ -140,6 +140,10 @@ auth.get("/callback/:provider", async (c) => {
     user = db.select().from(schema.users).where(eq(schema.users.email, email)).get();
   }
 
+  if (user?.deletedAt) {
+    return c.redirect("/#/login?error=account-deleted");
+  }
+
   if (!user) {
     const id = nanoid();
     db.insert(schema.users)
