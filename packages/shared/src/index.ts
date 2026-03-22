@@ -26,7 +26,13 @@ export interface RoleConfig {
 }
 
 export const DEFAULT_ROLE_CONFIG: Record<AssignmentRole, RoleConfig> = {
-  sdl: { role: "sdl", label: "SDL", requirement: "required", minPerDay: 1, maxPerDay: 1 },
+  sdl: {
+    role: "sdl",
+    label: "Drop Zone Leader",
+    requirement: "required",
+    minPerDay: 1,
+    maxPerDay: 1,
+  },
   manifest: {
     role: "manifest",
     label: "Manifest",
