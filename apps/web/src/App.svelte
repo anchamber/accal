@@ -6,6 +6,7 @@
   import Calendar from "./pages/Calendar.svelte";
   import Admin from "./pages/Admin.svelte";
   import Account from "./pages/Account.svelte";
+  import ToastContainer from "./components/ToastContainer.svelte";
 
   checkAuth().then(() => loadRoleConfig());
 </script>
@@ -16,6 +17,7 @@
     <p>Loading...</p>
   </div>
 {:else if !getUser() || getRoute() === "/login"}
+  <ToastContainer />
   <Login />
 {:else}
   <nav class="navbar">
@@ -50,6 +52,7 @@
     </div>
   </nav>
 
+  <ToastContainer />
   <main class="container">
     {#if getRoute() === "/admin" && hasRole("admin")}
       <Admin />

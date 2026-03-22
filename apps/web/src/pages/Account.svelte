@@ -8,19 +8,18 @@
     deletePasskey,
   } from "../lib/api.ts";
   import { getUser } from "../lib/auth.svelte.ts";
+  import { toastSuccess, toastError } from "../lib/toast.svelte.ts";
 
   let passkeys = $state<PasskeyCredential[]>([]);
   let loading = $state(true);
   let registering = $state(false);
-  let error = $state<string | null>(null);
-  let success = $state<string | null>(null);
 
   async function loadPasskeys() {
     loading = true;
     try {
       passkeys = await listPasskeys();
     } catch (err) {
-      error = err instanceof Error ? err.message : "Failed to load passkeys";
+      toastError(err instanceof Error ? err.message : "Failed to load passkeys");
     } finally {
       loading = false;
     }
@@ -28,19 +27,15 @@
 
   async function registerPasskey() {
     registering = true;
-    error = null;
-    success = null;
     try {
       const options = await getPasskeyRegisterOptions();
       const credential = await startRegistration({ optionsJSON: options });
       await verifyPasskeyRegistration(credential);
-      success = "Passkey registered successfully";
+      toastSuccess("Passkey registered successfully");
       await loadPasskeys();
     } catch (err) {
-      if (err instanceof Error && err.name === "NotAllowedError") {
-        error = null; // User cancelled
-      } else {
-        error = err instanceof Error ? err.message : "Failed to register passkey";
+      if (!(err instanceof Error && err.name === "NotAllowedError")) {
+        toastError(err instanceof Error ? err.message : "Failed to register passkey");
       }
     } finally {
       registering = false;
@@ -48,14 +43,12 @@
   }
 
   async function removePasskey(id: string) {
-    error = null;
-    success = null;
     try {
       await deletePasskey(id);
       await loadPasskeys();
-      success = "Passkey removed";
+      toastSuccess("Passkey removed");
     } catch (err) {
-      error = err instanceof Error ? err.message : "Failed to remove passkey";
+      toastError(err instanceof Error ? err.message : "Failed to remove passkey");
     }
   }
 
@@ -92,13 +85,6 @@
     <p class="section-desc">
       Passkeys let you sign in securely using your device's biometrics or PIN.
     </p>
-
-    {#if error}
-      <div class="error">{error}</div>
-    {/if}
-    {#if success}
-      <div class="success">{success}</div>
-    {/if}
 
     {#if loading}
       <p class="text-muted">Loading...</p>

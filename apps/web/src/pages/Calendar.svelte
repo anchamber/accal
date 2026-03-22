@@ -2,6 +2,7 @@
   import type { JumpDay } from "@accal/shared";
   import { fetchJumpDays, createJumpDay, deleteJumpDay } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
+  import { toastError } from "../lib/toast.svelte.ts";
   import { getRoleConfigs } from "../lib/roles.svelte.ts";
   import JumpDayModal from "../components/JumpDayModal.svelte";
 
@@ -12,7 +13,6 @@
   let showCreateForm = $state(false);
   let newDate = $state("");
   let newNotes = $state("");
-  let loadError = $state<string | null>(null);
 
   const year = $derived(currentDate.getFullYear());
   const month = $derived(currentDate.getMonth());
@@ -70,11 +70,10 @@
   }
 
   async function loadJumpDays() {
-    loadError = null;
     try {
       jumpDays = await fetchJumpDays(monthStr);
     } catch (e) {
-      loadError = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
@@ -103,7 +102,7 @@
       newNotes = "";
       await loadJumpDays();
     } catch (e) {
-      loadError = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
@@ -114,7 +113,7 @@
       selectedDay = null;
       await loadJumpDays();
     } catch (e) {
-      loadError = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
@@ -141,10 +140,6 @@
       </button>
     {/if}
   </div>
-
-  {#if loadError}
-    <div class="error">{loadError}</div>
-  {/if}
 
   {#if showCreateForm}
     <div class="create-form">

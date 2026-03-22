@@ -2,6 +2,7 @@
   import { startAuthentication } from "@simplewebauthn/browser";
   import { sendMagicLink, getPasskeyLoginOptions, verifyPasskeyLogin } from "../lib/api.ts";
   import { checkAuth } from "../lib/auth.svelte.ts";
+  import { toastError } from "../lib/toast.svelte.ts";
 
   const googleEnabled = true;
   const githubEnabled = true;
@@ -10,19 +11,17 @@
   let magicLinkSent = $state(false);
   let magicLinkLoading = $state(false);
   let passkeyLoading = $state(false);
-  let error = $state<string | null>(null);
 
   async function handleMagicLink(e: Event) {
     e.preventDefault();
     if (!email.trim()) return;
 
     magicLinkLoading = true;
-    error = null;
     try {
       await sendMagicLink(email.trim());
       magicLinkSent = true;
     } catch (err) {
-      error = err instanceof Error ? err.message : "Failed to send magic link";
+      toastError(err instanceof Error ? err.message : "Failed to send magic link");
     } finally {
       magicLinkLoading = false;
     }
@@ -30,17 +29,14 @@
 
   async function handlePasskeyLogin() {
     passkeyLoading = true;
-    error = null;
     try {
       const options = await getPasskeyLoginOptions();
       const credential = await startAuthentication({ optionsJSON: options });
       await verifyPasskeyLogin(credential);
       await checkAuth();
     } catch (err) {
-      if (err instanceof Error && err.name === "NotAllowedError") {
-        error = null; // User cancelled — not an error
-      } else {
-        error = err instanceof Error ? err.message : "Passkey authentication failed";
+      if (!(err instanceof Error && err.name === "NotAllowedError")) {
+        toastError(err instanceof Error ? err.message : "Passkey authentication failed");
       }
     } finally {
       passkeyLoading = false;
@@ -52,10 +48,6 @@
   <div class="login-card">
     <h1>accal</h1>
     <p class="subtitle">Dropzone Calendar</p>
-
-    {#if error}
-      <div class="error">{error}</div>
-    {/if}
 
     {#if magicLinkSent}
       <div class="magic-link-sent">

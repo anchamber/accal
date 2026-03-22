@@ -3,19 +3,17 @@
   import { ROLES } from "@accal/shared";
   import { fetchUsers, updateUserRoles, updateRoleConfig } from "../lib/api.ts";
   import { getRoleConfigs, getRoleConfig, refreshRoleConfig } from "../lib/roles.svelte.ts";
+  import { toastSuccess, toastError } from "../lib/toast.svelte.ts";
 
   let users = $state<(User & { oauthProvider: string })[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
-  let roleError = $state<string | null>(null);
-  let roleSuccess = $state<string | null>(null);
 
   async function loadUsers() {
     loading = true;
     try {
       users = await fetchUsers();
     } catch (e) {
-      error = (e as Error).message;
+      toastError((e as Error).message);
     } finally {
       loading = false;
     }
@@ -35,7 +33,7 @@
       user.roles = newRoles;
       users = [...users]; // trigger reactivity
     } catch (e) {
-      error = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
@@ -45,15 +43,12 @@
   }
 
   async function saveRoleConfig(role: RoleConfig["role"], field: string, value: unknown) {
-    roleError = null;
-    roleSuccess = null;
     try {
       await updateRoleConfig(role, { [field]: value });
       await refreshRoleConfig();
-      roleSuccess = "Saved";
-      setTimeout(() => { roleSuccess = null }, 1500);
+      toastSuccess("Saved");
     } catch (e) {
-      roleError = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
@@ -62,10 +57,6 @@
 
 <div class="admin-page">
   <h2>User Management</h2>
-
-  {#if error}
-    <div class="error">{error}</div>
-  {/if}
 
   {#if loading}
     <p>Loading users...</p>
@@ -114,13 +105,6 @@
   {/if}
 
   <h2 style="margin-top: 2rem;">Role Configuration</h2>
-
-  {#if roleError}
-    <div class="error">{roleError}</div>
-  {/if}
-  {#if roleSuccess}
-    <div class="success">{roleSuccess}</div>
-  {/if}
 
   <div class="table-wrapper">
     <table>

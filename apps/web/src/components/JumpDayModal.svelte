@@ -2,6 +2,7 @@
   import type { JumpDay, AssignmentRole, Assignment } from "@accal/shared";
   import { signup, withdraw, updateJumpDay } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
+  import { toastError } from "../lib/toast.svelte.ts";
   import { getRoleConfigs, getRoleConfig } from "../lib/roles.svelte.ts";
 
   interface Props {
@@ -12,7 +13,6 @@
 
   let { jumpDay, onclose, ondelete }: Props = $props();
 
-  let error = $state<string | null>(null);
   let editingNotes = $state(false);
   let notesValue = $state(jumpDay.notes ?? "");
 
@@ -37,22 +37,20 @@
   }
 
   async function handleSignup(role: AssignmentRole) {
-    error = null;
     try {
       await signup(jumpDay.id, role);
       onclose();
     } catch (e) {
-      error = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
   async function handleWithdraw(role: AssignmentRole) {
-    error = null;
     try {
       await withdraw(jumpDay.id, role);
       onclose();
     } catch (e) {
-      error = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
@@ -62,7 +60,7 @@
       editingNotes = false;
       onclose();
     } catch (e) {
-      error = (e as Error).message;
+      toastError((e as Error).message);
     }
   }
 
@@ -84,10 +82,6 @@
       <h3>{formatDate(jumpDay.date)}</h3>
       <button class="btn btn-sm" onclick={onclose}>X</button>
     </div>
-
-    {#if error}
-      <div class="error">{error}</div>
-    {/if}
 
     <div class="modal-body">
       <!-- Notes -->
