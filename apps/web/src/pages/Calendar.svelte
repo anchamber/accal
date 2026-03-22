@@ -112,6 +112,13 @@
     }
   }
 
+  async function handleRefresh() {
+    await loadJumpDays();
+    if (selectedDay) {
+      selectedDay = jumpDayMap().get(selectedDay.date) ?? null;
+    }
+  }
+
   function handleModalClose() {
     showModal = false;
     selectedDay = null;
@@ -171,6 +178,7 @@
       jumpDay={selectedDay}
       onclose={handleModalClose}
       ondelete={handleDelete}
+      onrefresh={handleRefresh}
     />
   {/if}
 </div>

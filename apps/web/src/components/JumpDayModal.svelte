@@ -9,9 +9,10 @@
     jumpDay: JumpDay;
     onclose: () => void;
     ondelete: (id: string) => void;
+    onrefresh: () => Promise<void>;
   }
 
-  let { jumpDay, onclose, ondelete }: Props = $props();
+  let { jumpDay, onclose, ondelete, onrefresh }: Props = $props();
 
   let editingNotes = $state(false);
   let notesValue = $state(jumpDay.notes ?? "");
@@ -39,7 +40,7 @@
   async function handleSignup(role: AssignmentRole) {
     try {
       await signup(jumpDay.id, role);
-      onclose();
+      await onrefresh();
     } catch (e) {
       toastError((e as Error).message);
     }
@@ -48,7 +49,7 @@
   async function handleWithdraw(role: AssignmentRole) {
     try {
       await withdraw(jumpDay.id, role);
-      onclose();
+      await onrefresh();
     } catch (e) {
       toastError((e as Error).message);
     }
