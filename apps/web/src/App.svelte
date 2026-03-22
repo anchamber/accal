@@ -1,7 +1,7 @@
 <script lang="ts">
   import { checkAuth, getUser, isLoading, hasRole, logout } from "./lib/auth.svelte.ts";
   import { loadRoleConfig } from "./lib/roles.svelte.ts";
-  import { getRoute, navigate } from "./lib/router.svelte.ts";
+  import { getRoute, navigate, onNavigate } from "./lib/router.svelte.ts";
   import Login from "./pages/Login.svelte";
   import Calendar from "./pages/Calendar.svelte";
   import Admin from "./pages/Admin.svelte";
@@ -10,6 +10,7 @@
   import Logo from "./components/Logo.svelte";
 
   checkAuth().then(() => loadRoleConfig());
+  onNavigate(() => checkAuth());
 </script>
 
 {#if isLoading()}
