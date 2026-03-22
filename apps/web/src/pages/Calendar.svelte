@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { JumpDay } from "@accal/shared";
-  import { fetchJumpDays, createJumpDay, deleteJumpDay } from "../lib/api.ts";
+  import { fetchJumpDays, createJumpDay, deleteJumpDay, importIcal } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
-  import { toastError } from "../lib/toast.svelte.ts";
+  import { toastError, toastSuccess } from "../lib/toast.svelte.ts";
   import { getRoleConfigs } from "../lib/roles.svelte.ts";
   import JumpDayModal from "../components/JumpDayModal.svelte";
 
@@ -144,6 +144,22 @@
     }
   }
 
+  let fileInput: HTMLInputElement;
+
+  async function handleImport(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const result = await importIcal(file);
+      toastSuccess(`Imported ${result.created} jump days (${result.skipped} skipped)`);
+      await loadJumpDays();
+    } catch (err) {
+      toastError((err as Error).message);
+    }
+    input.value = "";
+  }
+
   function handleModalClose() {
     showModal = false;
     selectedDay = null;
@@ -161,6 +177,18 @@
     <button class="btn" onclick={prevMonth}>&larr;</button>
     <h2>{monthName}</h2>
     <button class="btn" onclick={nextMonth}>&rarr;</button>
+    {#if hasRole("admin")}
+      <input
+        type="file"
+        accept=".ics,.ical"
+        class="hidden-input"
+        bind:this={fileInput}
+        onchange={handleImport}
+      />
+      <button class="btn btn-sm" onclick={() => fileInput.click()} title="Import from iCal file">
+        Import .ics
+      </button>
+    {/if}
   </div>
 
   <div class="calendar-grid">

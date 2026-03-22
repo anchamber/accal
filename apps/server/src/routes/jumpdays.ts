@@ -179,4 +179,92 @@ jumpdays.delete("/:id/signup", async (c) => {
   return c.json({ ok: true });
 });
 
+// Import jump days from iCal file
+jumpdays.post("/import", requireRole("admin"), async (c) => {
+  const contentType = c.req.header("content-type") ?? "";
+  let icalText: string;
+
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: "No file provided" }, 400);
+    }
+    icalText = await file.text();
+  } else {
+    const body = await c.req.json<{ ical: string }>();
+    if (!body.ical) {
+      return c.json({ error: "No iCal data provided" }, 400);
+    }
+    icalText = body.ical;
+  }
+
+  // Parse VEVENT blocks from iCal
+  const events = parseIcalEvents(icalText);
+  if (events.length === 0) {
+    return c.json({ error: "No events found in iCal file" }, 400);
+  }
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const event of events) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(event.date)) continue;
+
+    const existing = db
+      .select()
+      .from(schema.jumpDays)
+      .where(eq(schema.jumpDays.date, event.date))
+      .get();
+
+    if (existing) {
+      skipped++;
+      continue;
+    }
+
+    const id = nanoid();
+    db.insert(schema.jumpDays)
+      .values({ id, date: event.date, notes: event.summary || null })
+      .run();
+    created++;
+  }
+
+  return c.json({ created, skipped, total: events.length });
+});
+
+function parseIcalEvents(ical: string): { date: string; summary: string | null }[] {
+  const events: { date: string; summary: string | null }[] = [];
+  const lines = ical.replace(/\r\n /g, "").replace(/\r/g, "\n").split("\n");
+
+  let inEvent = false;
+  let date = "";
+  let summary: string | null = null;
+
+  for (const line of lines) {
+    if (line === "BEGIN:VEVENT") {
+      inEvent = true;
+      date = "";
+      summary = null;
+    } else if (line === "END:VEVENT") {
+      if (inEvent && date) {
+        events.push({ date, summary });
+      }
+      inEvent = false;
+    } else if (inEvent) {
+      if (line.startsWith("DTSTART")) {
+        // Handle DTSTART:20260315, DTSTART;VALUE=DATE:20260315, DTSTART:20260315T100000Z
+        const value = line.split(":").slice(1).join(":");
+        const raw = value.replace(/T.*$/, "");
+        if (/^\d{8}$/.test(raw)) {
+          date = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+        }
+      } else if (line.startsWith("SUMMARY:")) {
+        summary = line.slice(8).trim();
+      }
+    }
+  }
+
+  return events;
+}
+
 export default jumpdays;

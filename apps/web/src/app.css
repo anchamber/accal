@@ -265,6 +265,10 @@ textarea {
   background: #2f363d;
 }
 
+.hidden-input {
+  display: none;
+}
+
 /* Calendar */
 .calendar-page {
   max-width: 800px;

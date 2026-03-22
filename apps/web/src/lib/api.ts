@@ -60,6 +60,23 @@ export function signup(jumpDayId: string, role: AssignmentRole): Promise<void> {
   });
 }
 
+export async function importIcal(
+  file: File,
+): Promise<{ created: number; skipped: number; total: number }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch("/api/jumpdays/import", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export function withdraw(jumpDayId: string, role: AssignmentRole): Promise<void> {
   return request(`/api/jumpdays/${jumpDayId}/signup`, {
     method: "DELETE",
