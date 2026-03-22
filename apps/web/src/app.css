@@ -549,10 +549,6 @@ th {
   color: var(--danger);
 }
 
-.role-dropdown-wrapper {
-  position: relative;
-}
-
 .add-role-btn {
   padding: 0.1rem 0.5rem;
   font-size: 0.85rem;
@@ -560,10 +556,7 @@ th {
 }
 
 .role-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 0.25rem;
+  position: fixed;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);

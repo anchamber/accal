@@ -8,6 +8,7 @@
   let users = $state<(User & { oauthProvider: string })[]>([]);
   let loading = $state(true);
   let openDropdown = $state<string | null>(null);
+  let dropdownPos = $state({ top: 0, left: 0 });
 
   async function loadUsers() {
     loading = true;
@@ -51,8 +52,15 @@
     return getRoleConfig(role).label;
   }
 
-  function toggleDropdown(userId: string) {
-    openDropdown = openDropdown === userId ? null : userId;
+  function toggleDropdown(userId: string, e: MouseEvent) {
+    if (openDropdown === userId) {
+      openDropdown = null;
+      return;
+    }
+    const btn = e.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    dropdownPos = { top: rect.bottom + 4, left: rect.left };
+    openDropdown = userId;
   }
 
   async function saveRoleConfig(role: RoleConfig["role"], field: string, value: unknown) {
@@ -107,21 +115,7 @@
                       </span>
                     {/each}
                   </div>
-                  <div class="role-dropdown-wrapper" onclick={(e) => e.stopPropagation()}>
-                    <button class="btn btn-sm add-role-btn" onclick={() => toggleDropdown(user.id)}>+</button>
-                    {#if openDropdown === user.id}
-                      {@const available = ROLES.filter((r) => !user.roles.includes(r))}
-                      {#if available.length > 0}
-                        <div class="role-dropdown">
-                          {#each available as role}
-                            <button class="role-dropdown-item" onclick={() => addRole(user.id, role)}>
-                              {roleLabel(role)}
-                            </button>
-                          {/each}
-                        </div>
-                      {/if}
-                    {/if}
-                  </div>
+                  <button class="btn btn-sm add-role-btn" onclick={(e) => toggleDropdown(user.id, e)}>+</button>
                 </div>
               </td>
             </tr>
@@ -129,6 +123,23 @@
         </tbody>
       </table>
     </div>
+  {/if}
+
+  {#if openDropdown}
+    {@const user = users.find((u) => u.id === openDropdown)}
+    {#if user}
+      {@const available = ROLES.filter((r) => !user.roles.includes(r))}
+      {#if available.length > 0}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="role-dropdown" style="top: {dropdownPos.top}px; left: {dropdownPos.left}px;" onclick={(e) => e.stopPropagation()}>
+          {#each available as role}
+            <button class="role-dropdown-item" onclick={() => addRole(user.id, role)}>
+              {roleLabel(role)}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    {/if}
   {/if}
 
   <h2 style="margin-top: 2rem;">Role Configuration</h2>
