@@ -510,6 +510,85 @@ th {
   letter-spacing: 0.05em;
 }
 
+/* Role pills */
+.roles-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.pill-x {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+
+.pill-x:hover {
+  color: var(--danger);
+}
+
+.role-dropdown-wrapper {
+  position: relative;
+}
+
+.add-role-btn {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.role-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 50;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.role-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.role-dropdown-item:hover {
+  background: var(--bg-hover);
+}
+
 .role-col {
   text-align: center;
   width: 80px;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { User, Role, RoleConfig, RequirementLevel } from "@accal/shared";
+  import type { User, Role, RoleConfig } from "@accal/shared";
   import { ROLES } from "@accal/shared";
   import { fetchUsers, updateUserRoles, updateRoleConfig } from "../lib/api.ts";
   import { getRoleConfigs, getRoleConfig, refreshRoleConfig } from "../lib/roles.svelte.ts";
@@ -7,6 +7,7 @@
 
   let users = $state<(User & { oauthProvider: string })[]>([]);
   let loading = $state(true);
+  let openDropdown = $state<string | null>(null);
 
   async function loadUsers() {
     loading = true;
@@ -19,27 +20,39 @@
     }
   }
 
-  async function toggleRole(userId: string, role: Role) {
+  async function setRoles(userId: string, newRoles: Role[]) {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
-
-    const hasIt = user.roles.includes(role);
-    const newRoles = hasIt
-      ? user.roles.filter((r) => r !== role)
-      : [...user.roles, role];
-
     try {
       await updateUserRoles(userId, newRoles);
       user.roles = newRoles;
-      users = [...users]; // trigger reactivity
+      users = [...users];
     } catch (e) {
       toastError((e as Error).message);
     }
   }
 
+  async function removeRole(userId: string, role: Role) {
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+    await setRoles(userId, user.roles.filter((r) => r !== role));
+  }
+
+  async function addRole(userId: string, role: Role) {
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+    if (user.roles.includes(role)) return;
+    await setRoles(userId, [...user.roles, role]);
+    openDropdown = null;
+  }
+
   function roleLabel(role: Role): string {
     if (role === "admin") return "Admin";
     return getRoleConfig(role).label;
+  }
+
+  function toggleDropdown(userId: string) {
+    openDropdown = openDropdown === userId ? null : userId;
   }
 
   async function saveRoleConfig(role: RoleConfig["role"], field: string, value: unknown) {
@@ -55,7 +68,9 @@
   loadUsers();
 </script>
 
-<div class="admin-page">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="admin-page" onclick={() => { openDropdown = null }}>
   <h2>User Management</h2>
 
   {#if loading}
@@ -67,10 +82,7 @@
           <tr>
             <th>Name</th>
             <th>Email</th>
-            <th>Provider</th>
-            {#each ROLES as role}
-              <th class="role-col">{roleLabel(role)}</th>
-            {/each}
+            <th>Roles</th>
           </tr>
         </thead>
         <tbody>
@@ -85,18 +97,33 @@
                 </div>
               </td>
               <td>{user.email}</td>
-              <td>{user.oauthProvider}</td>
-              {#each ROLES as role}
-                <td class="role-col">
-                  <label class="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={user.roles.includes(role)}
-                      onchange={() => toggleRole(user.id, role)}
-                    />
-                  </label>
-                </td>
-              {/each}
+              <td>
+                <div class="roles-cell">
+                  <div class="pills">
+                    {#each user.roles as role}
+                      <span class="pill">
+                        {roleLabel(role)}
+                        <button class="pill-x" onclick={() => removeRole(user.id, role)}>x</button>
+                      </span>
+                    {/each}
+                  </div>
+                  <div class="role-dropdown-wrapper" onclick={(e) => e.stopPropagation()}>
+                    <button class="btn btn-sm add-role-btn" onclick={() => toggleDropdown(user.id)}>+</button>
+                    {#if openDropdown === user.id}
+                      {@const available = ROLES.filter((r) => !user.roles.includes(r))}
+                      {#if available.length > 0}
+                        <div class="role-dropdown">
+                          {#each available as role}
+                            <button class="role-dropdown-item" onclick={() => addRole(user.id, role)}>
+                              {roleLabel(role)}
+                            </button>
+                          {/each}
+                        </div>
+                      {/if}
+                    {/if}
+                  </div>
+                </div>
+              </td>
             </tr>
           {/each}
         </tbody>
