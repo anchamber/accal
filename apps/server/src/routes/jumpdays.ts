@@ -296,10 +296,13 @@ function expandEventDates(events: IcalEvent[]): { date: string; summary: string 
       }
     } else {
       // Multi-day: iterate from dtstart to dtend (exclusive, per iCal spec)
-      const start = new Date(event.dtstart + "T00:00:00");
-      const end = new Date(event.dtend + "T00:00:00");
+      const start = new Date(event.dtstart + "T12:00:00Z");
+      const end = new Date(event.dtend + "T12:00:00Z");
       for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-        const date = d.toISOString().split("T")[0]!;
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(d.getUTCDate()).padStart(2, "0");
+        const date = `${y}-${m}-${day}`;
         if (!seen.has(date)) {
           seen.add(date);
           result.push({ date, summary: event.summary });
