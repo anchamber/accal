@@ -10,9 +10,6 @@
   let jumpDays = $state<JumpDay[]>([]);
   let selectedDay = $state<JumpDay | null>(null);
   let showModal = $state(false);
-  let showCreateForm = $state(false);
-  let newDate = $state("");
-  let newNotes = $state("");
 
   const year = $derived(currentDate.getFullYear());
   const month = $derived(currentDate.getMonth());
@@ -85,24 +82,22 @@
     currentDate = new Date(year, month + 1, 1);
   }
 
-  function openDay(day: number) {
-    const jd = jumpDayMap().get(dateStr(day));
+  async function openDay(day: number) {
+    const date = dateStr(day);
+    let jd = jumpDayMap().get(date);
+    if (!jd && hasRole("admin")) {
+      try {
+        jd = await createJumpDay(date);
+        await loadJumpDays();
+        jd = jumpDayMap().get(date);
+      } catch (e) {
+        toastError((e as Error).message);
+        return;
+      }
+    }
     if (jd) {
       selectedDay = jd;
       showModal = true;
-    }
-  }
-
-  async function handleCreate() {
-    if (!newDate) return;
-    try {
-      await createJumpDay(newDate, newNotes || undefined);
-      showCreateForm = false;
-      newDate = "";
-      newNotes = "";
-      await loadJumpDays();
-    } catch (e) {
-      toastError((e as Error).message);
     }
   }
 
@@ -134,21 +129,7 @@
     <button class="btn" onclick={prevMonth}>&larr;</button>
     <h2>{monthName}</h2>
     <button class="btn" onclick={nextMonth}>&rarr;</button>
-    {#if hasRole("admin")}
-      <button class="btn btn-primary" onclick={() => { showCreateForm = !showCreateForm }}>
-        + Jump Day
-      </button>
-    {/if}
   </div>
-
-  {#if showCreateForm}
-    <div class="create-form">
-      <input type="date" bind:value={newDate} />
-      <input type="text" bind:value={newNotes} placeholder="Notes (optional)" />
-      <button class="btn btn-primary" onclick={handleCreate}>Create</button>
-      <button class="btn" onclick={() => { showCreateForm = false }}>Cancel</button>
-    </div>
-  {/if}
 
   <div class="calendar-grid">
     <div class="weekday-header">Mon</div>
@@ -167,6 +148,7 @@
         <button
           class="calendar-cell"
           class:has-jumpday={!!jd}
+          class:clickable={!!jd || hasRole("admin")}
           class:status-full={jd && getStatus(jd) === "full"}
           class:status-partial={jd && getStatus(jd) === "partial"}
           class:status-empty={jd && getStatus(jd) === "empty"}

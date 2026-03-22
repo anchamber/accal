@@ -332,8 +332,16 @@ textarea {
   border-color: transparent;
 }
 
-.calendar-cell.has-jumpday {
+.calendar-cell.clickable {
   cursor: pointer;
+}
+
+.calendar-cell.clickable:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.calendar-cell.has-jumpday {
   font-weight: 600;
 }
 
