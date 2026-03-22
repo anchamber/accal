@@ -190,6 +190,10 @@ jumpdays.post("/import", requireRole("admin"), async (c) => {
     if (!file || !(file instanceof File)) {
       return c.json({ error: "No file provided" }, 400);
     }
+    const MAX_ICAL_SIZE = 2 * 1024 * 1024; // 2 MB
+    if (file.size > MAX_ICAL_SIZE) {
+      return c.json({ error: "File too large (max 2 MB)" }, 413);
+    }
     icalText = await file.text();
   } else {
     const body = await c.req.json<{ ical: string }>();

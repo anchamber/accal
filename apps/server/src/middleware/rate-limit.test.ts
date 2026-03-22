@@ -3,11 +3,15 @@ import { Hono } from "hono";
 import { rateLimit } from "./rate-limit.ts";
 
 describe("rateLimit middleware", () => {
+  const originalTrustProxy = process.env.TRUST_PROXY;
+
   beforeEach(() => {
     vi.useFakeTimers();
+    process.env.TRUST_PROXY = "true";
   });
   afterEach(() => {
     vi.useRealTimers();
+    process.env.TRUST_PROXY = originalTrustProxy;
   });
 
   function createApp(max: number, windowMs: number) {

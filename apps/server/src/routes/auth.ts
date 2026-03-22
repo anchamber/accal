@@ -4,7 +4,7 @@ import * as arctic from "arctic";
 import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getGoogle, getGitHub } from "../auth/providers.ts";
-import { createSession, deleteSession } from "../auth/session.ts";
+import { createSession, deleteSession, deleteAllUserSessions } from "../auth/session.ts";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware } from "../middleware/auth.ts";
 import { rateLimit } from "../middleware/rate-limit.ts";
@@ -183,6 +183,14 @@ auth.post("/logout", (c) => {
     deleteSession(sessionId);
     deleteCookie(c, "session");
   }
+  return c.json({ ok: true });
+});
+
+// --- Logout everywhere ---
+auth.post("/logout-all", authMiddleware, (c) => {
+  const user = c.get("user");
+  deleteAllUserSessions(user.id);
+  deleteCookie(c, "session");
   return c.json({ ok: true });
 });
 

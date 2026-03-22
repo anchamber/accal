@@ -26,6 +26,10 @@ export function deleteSession(sessionId: string) {
   db.delete(schema.sessions).where(eq(schema.sessions.id, sessionId)).run();
 }
 
+export function deleteAllUserSessions(userId: string) {
+  db.delete(schema.sessions).where(eq(schema.sessions.userId, userId)).run();
+}
+
 export function cleanExpiredData() {
   const now = new Date();
   db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, now)).run();

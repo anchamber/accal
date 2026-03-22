@@ -56,7 +56,13 @@ export function rateLimit(options: RateLimitOptions) {
 }
 
 function getClientIp(c: Context): string {
-  return (
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip") || "unknown"
-  );
+  // Only trust proxy headers when explicitly configured
+  if (process.env.TRUST_PROXY === "true") {
+    const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+    const realIp = c.req.header("x-real-ip");
+    if (realIp) return realIp;
+  }
+  // Fall back to direct connection info
+  return c.env?.remoteAddress ?? "unknown";
 }
