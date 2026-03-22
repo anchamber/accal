@@ -213,12 +213,13 @@
           class:status-partial={jd && getStatus(jd) === "partial"}
           class:status-empty={jd && getStatus(jd) === "empty"}
           class:today={dateStr(day) === new Date().toISOString().split("T")[0]}
+          title={jd ? getTooltip(jd) : ""}
           onclick={() => openDay(day)}
         >
           <span class="day-number">{day}</span>
           {#if jd}
             <div class="jumpday-indicator">
-              <span class="status-bar" title={getTooltip(jd)}></span>
+              <span class="status-bar"></span>
             </div>
           {/if}
         </button>
