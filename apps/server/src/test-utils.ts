@@ -17,7 +17,7 @@ const DDL = `
 
   CREATE TABLE IF NOT EXISTS user_roles (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role TEXT NOT NULL CHECK(role IN ('admin', 'sdl', 'manifest')),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'sdl', 'manifest', 'pilot', 'tandem_master', 'instructor', 'load_planner')),
     UNIQUE(user_id, role)
   );
 
@@ -31,8 +31,8 @@ const DDL = `
   CREATE TABLE IF NOT EXISTS assignments (
     jump_day_id TEXT NOT NULL REFERENCES jump_days(id) ON DELETE CASCADE,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role TEXT NOT NULL CHECK(role IN ('sdl', 'manifest')),
-    UNIQUE(jump_day_id, role)
+    role TEXT NOT NULL CHECK(role IN ('sdl', 'manifest', 'pilot', 'tandem_master', 'instructor', 'load_planner')),
+    UNIQUE(jump_day_id, user_id, role)
   );
 
   CREATE TABLE IF NOT EXISTS sessions (

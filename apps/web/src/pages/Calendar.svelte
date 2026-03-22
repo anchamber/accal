@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { JumpDay } from "@accal/shared";
+  import { ASSIGNMENT_ROLES, ASSIGNMENT_ROLE_CONFIG } from "@accal/shared";
   import { fetchJumpDays, createJumpDay, deleteJumpDay } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
   import JumpDayModal from "../components/JumpDayModal.svelte";
@@ -46,11 +47,17 @@
   }
 
   function getStatus(jd: JumpDay): "full" | "partial" | "empty" {
-    const hasSDL = jd.assignments.some((a) => a.role === "sdl");
-    const hasManifest = jd.assignments.some((a) => a.role === "manifest");
-    if (hasSDL && hasManifest) return "full";
-    if (hasSDL || hasManifest) return "partial";
-    return "empty";
+    const filledRoles = new Set(jd.assignments.map((a) => a.role));
+    const requiredRoles = ASSIGNMENT_ROLES.filter((r) => ASSIGNMENT_ROLE_CONFIG[r].requirement === "required");
+    const limitingRoles = ASSIGNMENT_ROLES.filter((r) => ASSIGNMENT_ROLE_CONFIG[r].requirement === "limiting");
+
+    const allRequiredFilled = requiredRoles.every((r) => filledRoles.has(r));
+    if (!allRequiredFilled) return "empty";
+
+    const allLimitingFilled = limitingRoles.every((r) => filledRoles.has(r));
+    if (!allLimitingFilled) return "partial";
+
+    return "full";
   }
 
   async function loadJumpDays() {

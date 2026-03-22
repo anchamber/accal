@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
+import { ROLES } from "@accal/shared";
 import type { Role } from "@accal/shared";
 
 const users = new Hono();
@@ -41,10 +42,7 @@ users.patch("/:id/roles", requireRole("admin"), async (c) => {
   const user = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
   if (!user) return c.json({ error: "User not found" }, 404);
 
-  const validRoles = ["admin", "sdl", "manifest"] as const;
-  const roles = body.roles.filter((r): r is Role =>
-    validRoles.includes(r as (typeof validRoles)[number]),
-  );
+  const roles = body.roles.filter((r): r is Role => (ROLES as readonly string[]).includes(r));
 
   // Replace all roles
   db.delete(schema.userRoles).where(eq(schema.userRoles.userId, userId)).run();

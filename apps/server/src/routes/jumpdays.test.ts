@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
-import { createTestDb, seedTestUserWithRoles } from "../test-utils.ts";
+import { createTestDb, seedTestUser, seedTestUserWithRoles } from "../test-utils.ts";
 
 // Set up test DB mock
 const testState = { db: null as ReturnType<typeof createTestDb>["db"] | null };
@@ -12,13 +12,15 @@ vi.mock("../db/index.ts", () => {
 });
 
 // Mock session validation to return a controlled session
+let activeUserId = "test-user-1";
+
 vi.mock("../auth/session.ts", () => ({
   createSession: vi.fn(),
   validateSession: vi.fn((id: string) => {
     if (id === "valid-session") {
       return {
         id: "valid-session",
-        userId: "test-user-1",
+        userId: activeUserId,
         expiresAt: new Date(Date.now() + 86400000),
       };
     }
@@ -55,9 +57,18 @@ describe("jumpdays routes", () => {
     db.delete(schema.userRoles).run();
     db.delete(schema.sessions).run();
     db.delete(schema.users).run();
+    activeUserId = "test-user-1";
 
-    // Seed an admin user
-    seedTestUserWithRoles(db, ["admin", "sdl", "manifest"]);
+    // Seed an admin user with all roles
+    seedTestUserWithRoles(db, [
+      "admin",
+      "sdl",
+      "manifest",
+      "pilot",
+      "tandem_master",
+      "instructor",
+      "load_planner",
+    ]);
   });
 
   describe("GET /api/jumpdays", () => {
@@ -182,7 +193,25 @@ describe("jumpdays routes", () => {
       expect(assignments[0]!.userId).toBe("test-user-1");
     });
 
-    it("rejects signup for already-taken role", async () => {
+    it("signs up for a new role (pilot)", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "pilot" }),
+        }),
+      );
+      expect(res.status).toBe(201);
+
+      const assignments = db.select().from(schema.assignments).all();
+      expect(assignments).toHaveLength(1);
+      expect(assignments[0]!.role).toBe("pilot");
+    });
+
+    it("rejects same user signing up for same role twice", async () => {
       const db = testState.db!;
       db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
       db.insert(schema.assignments)
@@ -199,6 +228,39 @@ describe("jumpdays routes", () => {
       expect(res.status).toBe(409);
     });
 
+    it("allows different user to sign up for same role on same day", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // First user signs up
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "tandem_master" })
+        .run();
+
+      // Create second user and switch to them
+      seedTestUserWithRoles(db, ["tandem_master"], {
+        id: "test-user-2",
+        email: "user2@example.com",
+        name: "User 2",
+        oauthProvider: "github",
+        oauthId: "456",
+      });
+      activeUserId = "test-user-2";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "tandem_master" }),
+        }),
+      );
+      expect(res.status).toBe(201);
+
+      const assignments = db.select().from(schema.assignments).all();
+      expect(assignments).toHaveLength(2);
+      expect(assignments.every((a) => a.role === "tandem_master")).toBe(true);
+    });
+
     it("rejects invalid role", async () => {
       const db = testState.db!;
       db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
@@ -211,6 +273,30 @@ describe("jumpdays routes", () => {
         }),
       );
       expect(res.status).toBe(400);
+    });
+
+    it("rejects signup without qualification", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // Create user without pilot role
+      seedTestUser(db, {
+        id: "test-user-nopilot",
+        email: "nopilot@example.com",
+        name: "No Pilot",
+        oauthProvider: "google",
+        oauthId: "789",
+      });
+      activeUserId = "test-user-nopilot";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "pilot" }),
+        }),
+      );
+      expect(res.status).toBe(403);
     });
   });
 

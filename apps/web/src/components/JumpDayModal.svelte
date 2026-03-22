@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { JumpDay } from "@accal/shared";
+  import { ASSIGNMENT_ROLES, ASSIGNMENT_ROLE_CONFIG } from "@accal/shared";
+  import type { JumpDay, AssignmentRole, Assignment } from "@accal/shared";
   import { signup, withdraw, updateJumpDay } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
 
@@ -15,28 +16,21 @@
   let editingNotes = $state(false);
   let notesValue = $state(jumpDay.notes ?? "");
 
-  const sdlAssignment = $derived(
-    jumpDay.assignments.find((a) => a.role === "sdl"),
-  );
-  const manifestAssignment = $derived(
-    jumpDay.assignments.find((a) => a.role === "manifest"),
-  );
   const user = $derived(getUser());
 
-  const canSignupSDL = $derived(
-    hasRole("sdl") && !sdlAssignment,
-  );
-  const canSignupManifest = $derived(
-    hasRole("manifest") && !manifestAssignment,
-  );
-  const isMySDL = $derived(
-    sdlAssignment?.user.id === user?.id,
-  );
-  const isMyManifest = $derived(
-    manifestAssignment?.user.id === user?.id,
-  );
+  function assignmentsForRole(role: AssignmentRole): Assignment[] {
+    return jumpDay.assignments.filter((a) => a.role === role);
+  }
 
-  async function handleSignup(role: "sdl" | "manifest") {
+  function isSignedUp(role: AssignmentRole): boolean {
+    return jumpDay.assignments.some((a) => a.role === role && a.user.id === user?.id);
+  }
+
+  function canSignup(role: AssignmentRole): boolean {
+    return hasRole(role) && !isSignedUp(role);
+  }
+
+  async function handleSignup(role: AssignmentRole) {
     error = null;
     try {
       await signup(jumpDay.id, role);
@@ -46,7 +40,7 @@
     }
   }
 
-  async function handleWithdraw(role: "sdl" | "manifest") {
+  async function handleWithdraw(role: AssignmentRole) {
     error = null;
     try {
       await withdraw(jumpDay.id, role);
@@ -109,59 +103,45 @@
         {/if}
       </div>
 
-      <!-- SDL -->
-      <div class="section">
-        <h4>Sprungdienstleiter (SDL)</h4>
-        {#if sdlAssignment}
-          <div class="assignment">
-            <span class="assigned-user">
-              {#if sdlAssignment.user.avatarUrl}
-                <img src={sdlAssignment.user.avatarUrl} alt="" class="avatar" />
-              {/if}
-              {sdlAssignment.user.name}
-            </span>
-            {#if isMySDL}
-              <button class="btn btn-sm btn-danger" onclick={() => handleWithdraw("sdl")}>
-                Withdraw
-              </button>
+      <!-- Role Sections -->
+      {#each ASSIGNMENT_ROLES as role}
+        {@const config = ASSIGNMENT_ROLE_CONFIG[role]}
+        {@const roleAssignments = assignmentsForRole(role)}
+        <div class="section">
+          <h4>
+            {config.label}
+            {#if config.requirement === "required"}
+              <span class="req-badge req-required" title="Required for jumping">required</span>
+            {:else if config.requirement === "limiting"}
+              <span class="req-badge req-limiting" title="Limits possibilities when missing">limiting</span>
             {/if}
-          </div>
-        {:else}
-          <p class="unassigned">Not assigned</p>
-          {#if canSignupSDL}
-            <button class="btn btn-primary btn-sm" onclick={() => handleSignup("sdl")}>
+          </h4>
+          {#if roleAssignments.length > 0}
+            {#each roleAssignments as assignment}
+              <div class="assignment">
+                <span class="assigned-user">
+                  {#if assignment.user.avatarUrl}
+                    <img src={assignment.user.avatarUrl} alt="" class="avatar" />
+                  {/if}
+                  {assignment.user.name}
+                </span>
+                {#if assignment.user.id === user?.id}
+                  <button class="btn btn-sm btn-danger" onclick={() => handleWithdraw(role)}>
+                    Withdraw
+                  </button>
+                {/if}
+              </div>
+            {/each}
+          {:else}
+            <p class="unassigned">Not assigned</p>
+          {/if}
+          {#if canSignup(role)}
+            <button class="btn btn-primary btn-sm" style="margin-top: 0.25rem;" onclick={() => handleSignup(role)}>
               Sign Up
             </button>
           {/if}
-        {/if}
-      </div>
-
-      <!-- Manifest -->
-      <div class="section">
-        <h4>Manifest</h4>
-        {#if manifestAssignment}
-          <div class="assignment">
-            <span class="assigned-user">
-              {#if manifestAssignment.user.avatarUrl}
-                <img src={manifestAssignment.user.avatarUrl} alt="" class="avatar" />
-              {/if}
-              {manifestAssignment.user.name}
-            </span>
-            {#if isMyManifest}
-              <button class="btn btn-sm btn-danger" onclick={() => handleWithdraw("manifest")}>
-                Withdraw
-              </button>
-            {/if}
-          </div>
-        {:else}
-          <p class="unassigned">Not assigned</p>
-          {#if canSignupManifest}
-            <button class="btn btn-primary btn-sm" onclick={() => handleSignup("manifest")}>
-              Sign Up
-            </button>
-          {/if}
-        {/if}
-      </div>
+        </div>
+      {/each}
 
       {#if hasRole("admin")}
         <div class="section danger-zone">

@@ -1,4 +1,4 @@
-import type { User, JumpDay, Role, PasskeyCredential } from "@accal/shared";
+import type { User, JumpDay, Role, AssignmentRole, PasskeyCredential } from "@accal/shared";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -46,14 +46,14 @@ export function deleteJumpDay(id: string): Promise<void> {
   return request(`/api/jumpdays/${id}`, { method: "DELETE" });
 }
 
-export function signup(jumpDayId: string, role: "sdl" | "manifest"): Promise<void> {
+export function signup(jumpDayId: string, role: AssignmentRole): Promise<void> {
   return request(`/api/jumpdays/${jumpDayId}/signup`, {
     method: "POST",
     body: JSON.stringify({ role }),
   });
 }
 
-export function withdraw(jumpDayId: string, role: "sdl" | "manifest"): Promise<void> {
+export function withdraw(jumpDayId: string, role: AssignmentRole): Promise<void> {
   return request(`/api/jumpdays/${jumpDayId}/signup`, {
     method: "DELETE",
     body: JSON.stringify({ role }),

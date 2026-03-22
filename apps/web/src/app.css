@@ -448,6 +448,27 @@ textarea {
   border-radius: 50%;
 }
 
+.req-badge {
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+
+.req-required {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.req-limiting {
+  background: rgba(234, 179, 8, 0.15);
+  color: var(--warning);
+}
+
 .unassigned {
   color: var(--text-muted);
   font-style: italic;

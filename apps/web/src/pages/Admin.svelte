@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { User, Role } from "@accal/shared";
-  import { ROLES } from "@accal/shared";
+  import { ROLES, ASSIGNMENT_ROLE_CONFIG } from "@accal/shared";
+  import type { AssignmentRole } from "@accal/shared";
   import { fetchUsers, updateUserRoles } from "../lib/api.ts";
 
   let users = $state<(User & { oauthProvider: string })[]>([]);
@@ -57,7 +58,7 @@
             <th>Email</th>
             <th>Provider</th>
             {#each ROLES as role}
-              <th class="role-col">{role}</th>
+              <th class="role-col">{role === "admin" ? "Admin" : ASSIGNMENT_ROLE_CONFIG[role as AssignmentRole].label}</th>
             {/each}
           </tr>
         </thead>

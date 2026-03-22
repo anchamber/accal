@@ -26,7 +26,9 @@ export const userRoles = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    role: text("role", { enum: ["admin", "sdl", "manifest"] }).notNull(),
+    role: text("role", {
+      enum: ["admin", "sdl", "manifest", "pilot", "tandem_master", "instructor", "load_planner"],
+    }).notNull(),
   },
   (table) => [uniqueIndex("user_roles_idx").on(table.userId, table.role)],
 );
@@ -49,9 +51,13 @@ export const assignments = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    role: text("role", { enum: ["sdl", "manifest"] }).notNull(),
+    role: text("role", {
+      enum: ["sdl", "manifest", "pilot", "tandem_master", "instructor", "load_planner"],
+    }).notNull(),
   },
-  (table) => [uniqueIndex("assignments_role_idx").on(table.jumpDayId, table.role)],
+  (table) => [
+    uniqueIndex("assignments_user_role_idx").on(table.jumpDayId, table.userId, table.role),
+  ],
 );
 
 export const sessions = sqliteTable("sessions", {

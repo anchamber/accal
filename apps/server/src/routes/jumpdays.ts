@@ -3,7 +3,8 @@ import { eq, and, like } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
-import type { JumpDay, Assignment } from "@accal/shared";
+import { ASSIGNMENT_ROLES } from "@accal/shared";
+import type { JumpDay, Assignment, AssignmentRole } from "@accal/shared";
 
 const jumpdays = new Hono();
 
@@ -105,9 +106,9 @@ jumpdays.delete("/:id", requireRole("admin"), (c) => {
 jumpdays.post("/:id/signup", async (c) => {
   const jumpDayId = c.req.param("id")!;
   const user = c.get("user");
-  const body = await c.req.json<{ role: "sdl" | "manifest" }>();
+  const body = await c.req.json<{ role: AssignmentRole }>();
 
-  if (!["sdl", "manifest"].includes(body.role)) {
+  if (!(ASSIGNMENT_ROLES as readonly string[]).includes(body.role)) {
     return c.json({ error: "Invalid role" }, 400);
   }
 
@@ -119,14 +120,20 @@ jumpdays.post("/:id/signup", async (c) => {
   const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, jumpDayId)).get();
   if (!day) return c.json({ error: "Jump day not found" }, 404);
 
-  // Check if role is already taken
+  // Check if this user is already signed up for this role on this day
   const existing = db
     .select()
     .from(schema.assignments)
-    .where(and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.role, body.role)))
+    .where(
+      and(
+        eq(schema.assignments.jumpDayId, jumpDayId),
+        eq(schema.assignments.userId, user.id),
+        eq(schema.assignments.role, body.role),
+      ),
+    )
     .get();
   if (existing) {
-    return c.json({ error: "This role is already assigned" }, 409);
+    return c.json({ error: "You are already signed up for this role" }, 409);
   }
 
   db.insert(schema.assignments).values({ jumpDayId, userId: user.id, role: body.role }).run();
@@ -138,7 +145,7 @@ jumpdays.post("/:id/signup", async (c) => {
 jumpdays.delete("/:id/signup", async (c) => {
   const jumpDayId = c.req.param("id")!;
   const user = c.get("user");
-  const body = await c.req.json<{ role: "sdl" | "manifest" }>();
+  const body = await c.req.json<{ role: AssignmentRole }>();
 
   db.delete(schema.assignments)
     .where(
