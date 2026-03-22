@@ -362,22 +362,23 @@ textarea {
 
 .jumpday-indicator {
   margin-top: auto;
+  width: 100%;
 }
 
-.dot {
+.status-bar {
   display: block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
 }
 
-.status-full .dot {
+.status-full .status-bar {
   background: var(--success);
 }
-.status-partial .dot {
+.status-partial .status-bar {
   background: var(--warning);
 }
-.status-empty .dot {
+.status-empty .status-bar {
   background: var(--danger);
 }
 

@@ -190,7 +190,7 @@
           <span class="day-number">{day}</span>
           {#if jd}
             <div class="jumpday-indicator">
-              <span class="dot" title={getTooltip(jd)}></span>
+              <span class="status-bar" title={getTooltip(jd)}></span>
             </div>
           {/if}
         </button>
