@@ -199,22 +199,21 @@ jumpdays.post("/import", requireRole("admin"), async (c) => {
     icalText = body.ical;
   }
 
-  // Parse VEVENT blocks from iCal
+  // Parse VEVENT blocks and expand multi-day events
   const events = parseIcalEvents(icalText);
-  if (events.length === 0) {
+  const dates = expandEventDates(events);
+  if (dates.length === 0) {
     return c.json({ error: "No events found in iCal file" }, 400);
   }
 
   let created = 0;
   let skipped = 0;
 
-  for (const event of events) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(event.date)) continue;
-
+  for (const entry of dates) {
     const existing = db
       .select()
       .from(schema.jumpDays)
-      .where(eq(schema.jumpDays.date, event.date))
+      .where(eq(schema.jumpDays.date, entry.date))
       .get();
 
     if (existing) {
@@ -224,40 +223,46 @@ jumpdays.post("/import", requireRole("admin"), async (c) => {
 
     const id = nanoid();
     db.insert(schema.jumpDays)
-      .values({ id, date: event.date, notes: event.summary || null })
+      .values({ id, date: entry.date, notes: entry.summary || null })
       .run();
     created++;
   }
 
-  return c.json({ created, skipped, total: events.length });
+  return c.json({ created, skipped, total: dates.length });
 });
 
-function parseIcalEvents(ical: string): { date: string; summary: string | null }[] {
-  const events: { date: string; summary: string | null }[] = [];
+interface IcalEvent {
+  dtstart: string; // YYYY-MM-DD
+  dtend: string | null; // YYYY-MM-DD (exclusive) or null
+  summary: string | null;
+}
+
+function parseIcalEvents(ical: string): IcalEvent[] {
+  const events: IcalEvent[] = [];
+  // Unfold lines (RFC 5545: continuation lines start with a space)
   const lines = ical.replace(/\r\n /g, "").replace(/\r/g, "\n").split("\n");
 
   let inEvent = false;
-  let date = "";
+  let dtstart = "";
+  let dtend: string | null = null;
   let summary: string | null = null;
 
   for (const line of lines) {
     if (line === "BEGIN:VEVENT") {
       inEvent = true;
-      date = "";
+      dtstart = "";
+      dtend = null;
       summary = null;
     } else if (line === "END:VEVENT") {
-      if (inEvent && date) {
-        events.push({ date, summary });
+      if (inEvent && dtstart) {
+        events.push({ dtstart, dtend, summary });
       }
       inEvent = false;
     } else if (inEvent) {
       if (line.startsWith("DTSTART")) {
-        // Handle DTSTART:20260315, DTSTART;VALUE=DATE:20260315, DTSTART:20260315T100000Z
-        const value = line.split(":").slice(1).join(":");
-        const raw = value.replace(/T.*$/, "");
-        if (/^\d{8}$/.test(raw)) {
-          date = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
-        }
+        dtstart = parseIcalDate(line);
+      } else if (line.startsWith("DTEND")) {
+        dtend = parseIcalDate(line);
       } else if (line.startsWith("SUMMARY:")) {
         summary = line.slice(8).trim();
       }
@@ -265,6 +270,45 @@ function parseIcalEvents(ical: string): { date: string; summary: string | null }
   }
 
   return events;
+}
+
+function parseIcalDate(line: string): string {
+  const value = line.split(":").slice(1).join(":");
+  const raw = value.replace(/T.*$/, "");
+  if (/^\d{8}$/.test(raw)) {
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  }
+  return "";
+}
+
+function expandEventDates(events: IcalEvent[]): { date: string; summary: string | null }[] {
+  const result: { date: string; summary: string | null }[] = [];
+  const seen = new Set<string>();
+
+  for (const event of events) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(event.dtstart)) continue;
+
+    if (!event.dtend || event.dtend === event.dtstart) {
+      // Single-day event
+      if (!seen.has(event.dtstart)) {
+        seen.add(event.dtstart);
+        result.push({ date: event.dtstart, summary: event.summary });
+      }
+    } else {
+      // Multi-day: iterate from dtstart to dtend (exclusive, per iCal spec)
+      const start = new Date(event.dtstart + "T00:00:00");
+      const end = new Date(event.dtend + "T00:00:00");
+      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+        const date = d.toISOString().split("T")[0]!;
+        if (!seen.has(date)) {
+          seen.add(date);
+          result.push({ date, summary: event.summary });
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 export default jumpdays;
