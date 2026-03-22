@@ -169,7 +169,7 @@ passkey.post("/login-verify", async (c) => {
     .get();
 
   if (!storedCredential) {
-    return c.json({ error: "Unknown credential" }, 400);
+    return c.json({ error: "Authentication failed" }, 400);
   }
 
   const verification = await verifyAuthenticationResponse({

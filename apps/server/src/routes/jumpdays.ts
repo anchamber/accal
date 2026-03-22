@@ -1,10 +1,30 @@
 import { Hono } from "hono";
 import { eq, and, like, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import * as v from "valibot";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
+import { parseBody } from "../middleware/validate.ts";
 import { ASSIGNMENT_ROLES } from "@accal/shared";
 import type { JumpDay, Assignment, AssignmentRole } from "@accal/shared";
+
+const CreateJumpDaySchema = v.object({
+  date: v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/)),
+  notes: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(2000)))),
+});
+
+const UpdateJumpDaySchema = v.object({
+  date: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+  notes: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(2000)))),
+});
+
+const SignupSchema = v.object({
+  role: v.picklist(ASSIGNMENT_ROLES as unknown as [string, ...string[]]),
+});
+
+const ImportIcalJsonSchema = v.object({
+  ical: v.pipe(v.string(), v.minLength(1)),
+});
 
 const jumpdays = new Hono();
 
@@ -51,8 +71,8 @@ jumpdays.get("/", (c) => {
 
 // Create jump day (admin)
 jumpdays.post("/", requireRole("admin"), async (c) => {
-  const body = await c.req.json<{ date: string; notes?: string }>();
-  if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+  const body = await parseBody(c, CreateJumpDaySchema);
+  if (!body) {
     return c.json({ error: "Invalid date format (YYYY-MM-DD)" }, 400);
   }
 
@@ -76,7 +96,8 @@ jumpdays.post("/", requireRole("admin"), async (c) => {
 // Update jump day (admin)
 jumpdays.patch("/:id", requireRole("admin"), async (c) => {
   const id = c.req.param("id")!;
-  const body = await c.req.json<{ date?: string; notes?: string | null }>();
+  const body = await parseBody(c, UpdateJumpDaySchema);
+  if (!body) return c.json({ error: "Invalid input" }, 400);
 
   const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, id)).get();
   if (!day) return c.json({ error: "Not found" }, 404);
@@ -106,14 +127,14 @@ jumpdays.delete("/:id", requireRole("admin"), (c) => {
 jumpdays.post("/:id/signup", async (c) => {
   const jumpDayId = c.req.param("id")!;
   const user = c.get("user");
-  const body = await c.req.json<{ role: AssignmentRole }>();
-
-  if (!(ASSIGNMENT_ROLES as readonly string[]).includes(body.role)) {
+  const body = await parseBody(c, SignupSchema);
+  if (!body) {
     return c.json({ error: "Invalid role" }, 400);
   }
+  const role = body.role as AssignmentRole;
 
   // Check user has the required role
-  if (!user.roles.includes(body.role)) {
+  if (!user.roles.includes(role)) {
     return c.json({ error: "You don't have this qualification" }, 403);
   }
 
@@ -124,15 +145,13 @@ jumpdays.post("/:id/signup", async (c) => {
   const roleConf = db
     .select()
     .from(schema.roleConfig)
-    .where(eq(schema.roleConfig.role, body.role))
+    .where(eq(schema.roleConfig.role, role as string))
     .get();
   if (roleConf?.maxPerDay !== null && roleConf?.maxPerDay !== undefined) {
     const currentCount = db
       .select({ value: count() })
       .from(schema.assignments)
-      .where(
-        and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.role, body.role)),
-      )
+      .where(and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.role, role)))
       .get();
     if (currentCount && currentCount.value >= roleConf.maxPerDay) {
       return c.json({ error: "Maximum signups reached for this role" }, 409);
@@ -147,7 +166,7 @@ jumpdays.post("/:id/signup", async (c) => {
       and(
         eq(schema.assignments.jumpDayId, jumpDayId),
         eq(schema.assignments.userId, user.id),
-        eq(schema.assignments.role, body.role),
+        eq(schema.assignments.role, role),
       ),
     )
     .get();
@@ -155,7 +174,7 @@ jumpdays.post("/:id/signup", async (c) => {
     return c.json({ error: "You are already signed up for this role" }, 409);
   }
 
-  db.insert(schema.assignments).values({ jumpDayId, userId: user.id, role: body.role }).run();
+  db.insert(schema.assignments).values({ jumpDayId, userId: user.id, role }).run();
 
   return c.json({ ok: true }, 201);
 });
@@ -164,14 +183,16 @@ jumpdays.post("/:id/signup", async (c) => {
 jumpdays.delete("/:id/signup", async (c) => {
   const jumpDayId = c.req.param("id")!;
   const user = c.get("user");
-  const body = await c.req.json<{ role: AssignmentRole }>();
+  const body = await parseBody(c, SignupSchema);
+  if (!body) return c.json({ error: "Invalid role" }, 400);
+  const role = body.role as AssignmentRole;
 
   db.delete(schema.assignments)
     .where(
       and(
         eq(schema.assignments.jumpDayId, jumpDayId),
         eq(schema.assignments.userId, user.id),
-        eq(schema.assignments.role, body.role),
+        eq(schema.assignments.role, role),
       ),
     )
     .run();
@@ -196,8 +217,8 @@ jumpdays.post("/import", requireRole("admin"), async (c) => {
     }
     icalText = await file.text();
   } else {
-    const body = await c.req.json<{ ical: string }>();
-    if (!body.ical) {
+    const body = await parseBody(c, ImportIcalJsonSchema);
+    if (!body) {
       return c.json({ error: "No iCal data provided" }, 400);
     }
     icalText = body.ical;

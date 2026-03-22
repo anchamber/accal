@@ -2,10 +2,17 @@ import { Hono } from "hono";
 import { setCookie } from "hono/cookie";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import * as v from "valibot";
 import { db, schema } from "../db/index.ts";
 import { createSession } from "../auth/session.ts";
 import { sendMagicLinkEmail } from "../auth/email.ts";
+import { grantAdminIfFirstUser } from "../auth/first-user.ts";
 import { rateLimit } from "../middleware/rate-limit.ts";
+import { parseBody } from "../middleware/validate.ts";
+
+const SendMagicLinkSchema = v.object({
+  email: v.pipe(v.string(), v.email(), v.maxLength(254)),
+});
 
 const magicLink = new Hono();
 
@@ -16,12 +23,11 @@ const TOKEN_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 // --- Send magic link ---
 magicLink.post("/send", async (c) => {
-  const body = await c.req.json<{ email?: string }>();
-  const email = body.email?.trim().toLowerCase();
-
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const body = await parseBody(c, SendMagicLinkSchema);
+  if (!body) {
     return c.json({ error: "Invalid email address" }, 400);
   }
+  const email = body.email.trim().toLowerCase();
 
   // Clean up any existing tokens for this email
   const existing = db
@@ -82,12 +88,7 @@ magicLink.get("/verify", async (c) => {
     const name = email.split("@")[0]!;
     db.insert(schema.users).values({ id, email, name, oauthProvider: null, oauthId: null }).run();
     user = db.select().from(schema.users).where(eq(schema.users.id, id)).get()!;
-
-    // First user gets admin role
-    const userCount = db.select().from(schema.users).all().length;
-    if (userCount === 1) {
-      db.insert(schema.userRoles).values({ userId: id, role: "admin" }).run();
-    }
+    grantAdminIfFirstUser(id);
   }
 
   const sessionId = createSession(user.id);

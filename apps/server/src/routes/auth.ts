@@ -4,6 +4,7 @@ import * as arctic from "arctic";
 import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getGoogle, getGitHub } from "../auth/providers.ts";
+import { grantAdminIfFirstUser } from "../auth/first-user.ts";
 import { createSession, deleteSession, deleteAllUserSessions } from "../auth/session.ts";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware } from "../middleware/auth.ts";
@@ -145,12 +146,7 @@ auth.get("/callback/:provider", async (c) => {
       .values({ id, email, name, avatarUrl, oauthProvider: provider, oauthId })
       .run();
     user = db.select().from(schema.users).where(eq(schema.users.id, id)).get()!;
-
-    // First user gets admin role
-    const userCount = db.select().from(schema.users).all().length;
-    if (userCount === 1) {
-      db.insert(schema.userRoles).values({ userId: id, role: "admin" }).run();
-    }
+    grantAdminIfFirstUser(id);
   } else {
     // Update profile info and link OAuth if not yet linked
     db.update(schema.users)

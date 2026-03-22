@@ -1,9 +1,15 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
+import * as v from "valibot";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
+import { parseBody } from "../middleware/validate.ts";
 import { ROLES } from "@accal/shared";
 import type { Role } from "@accal/shared";
+
+const UpdateRolesSchema = v.object({
+  roles: v.array(v.picklist(ROLES as unknown as [string, ...string[]])),
+});
 
 const users = new Hono();
 
@@ -37,12 +43,13 @@ users.get("/", requireRole("admin"), (c) => {
 // Update user roles (admin)
 users.patch("/:id/roles", requireRole("admin"), async (c) => {
   const userId = c.req.param("id")!;
-  const body = await c.req.json<{ roles: Role[] }>();
+  const body = await parseBody(c, UpdateRolesSchema);
+  if (!body) return c.json({ error: "Invalid input" }, 400);
 
   const user = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
   if (!user) return c.json({ error: "User not found" }, 404);
 
-  const roles = body.roles.filter((r): r is Role => (ROLES as readonly string[]).includes(r));
+  const roles = body.roles as Role[];
 
   // Check: if removing admin from this user, ensure at least one other admin remains
   const currentRoles = db

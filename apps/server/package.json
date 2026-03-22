@@ -17,7 +17,8 @@
     "drizzle-orm": "^0.44.2",
     "hono": "^4.7.10",
     "nanoid": "^5.1.5",
-    "nodemailer": "catalog:"
+    "nodemailer": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

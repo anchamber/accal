@@ -1,8 +1,17 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
+import * as v from "valibot";
 import { db, schema } from "../db/index.ts";
 import { authMiddleware, requireRole } from "../middleware/auth.ts";
+import { parseBody } from "../middleware/validate.ts";
 import type { RoleConfig, RequirementLevel } from "@accal/shared";
+
+const UpdateRoleConfigSchema = v.object({
+  label: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(100))),
+  requirement: v.optional(v.picklist(["required", "limiting", "optional"])),
+  minPerDay: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  maxPerDay: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1)))),
+});
 
 const roles = new Hono();
 
@@ -33,33 +42,14 @@ roles.patch("/config/:role", requireRole("admin"), async (c) => {
     return c.json({ error: "Unknown role" }, 404);
   }
 
-  const body = await c.req.json<{
-    label?: string;
-    requirement?: RequirementLevel;
-    minPerDay?: number;
-    maxPerDay?: number | null;
-  }>();
+  const body = await parseBody(c, UpdateRoleConfigSchema);
+  if (!body) return c.json({ error: "Invalid input" }, 400);
 
   const updates: Record<string, unknown> = {};
   if (body.label !== undefined) updates.label = body.label;
-  if (body.requirement !== undefined) {
-    if (!["required", "limiting", "optional"].includes(body.requirement)) {
-      return c.json({ error: "Invalid requirement level" }, 400);
-    }
-    updates.requirement = body.requirement;
-  }
-  if (body.minPerDay !== undefined) {
-    if (typeof body.minPerDay !== "number" || body.minPerDay < 0) {
-      return c.json({ error: "minPerDay must be a non-negative number" }, 400);
-    }
-    updates.minPerDay = body.minPerDay;
-  }
-  if (body.maxPerDay !== undefined) {
-    if (body.maxPerDay !== null && (typeof body.maxPerDay !== "number" || body.maxPerDay < 1)) {
-      return c.json({ error: "maxPerDay must be a positive number or null" }, 400);
-    }
-    updates.maxPerDay = body.maxPerDay;
-  }
+  if (body.requirement !== undefined) updates.requirement = body.requirement;
+  if (body.minPerDay !== undefined) updates.minPerDay = body.minPerDay;
+  if (body.maxPerDay !== undefined) updates.maxPerDay = body.maxPerDay;
 
   if (Object.keys(updates).length > 0) {
     db.update(schema.roleConfig)
