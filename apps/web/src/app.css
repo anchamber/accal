@@ -735,6 +735,30 @@ input[type="checkbox"] {
   min-width: 60px;
 }
 
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.125rem 0.375rem;
+  font-size: 1rem;
+  color: var(--text-muted);
+  border-radius: var(--radius);
+}
+
+.btn-icon:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.name-input {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
 .provider-badge {
   display: inline-block;
   padding: 0.125rem 0.5rem;

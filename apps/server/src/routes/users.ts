@@ -11,9 +11,24 @@ const UpdateRolesSchema = v.object({
   roles: v.array(v.picklist(ROLES as unknown as [string, ...string[]])),
 });
 
+const UpdateNameSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
+});
+
 const users = new Hono();
 
 users.use("*", authMiddleware);
+
+// Update own name
+users.patch("/me/name", async (c) => {
+  const authUser = c.get("user");
+  const body = await parseBody(c, UpdateNameSchema);
+  if (!body) return c.json({ error: "Invalid input" }, 400);
+
+  db.update(schema.users).set({ name: body.name }).where(eq(schema.users.id, authUser.id)).run();
+
+  return c.json({ ok: true, name: body.name });
+});
 
 // List all users (admin)
 users.get("/", requireRole("admin"), (c) => {

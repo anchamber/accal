@@ -38,6 +38,10 @@ export async function logout() {
   }
 }
 
+export function setUserName(name: string) {
+  if (user) user = { ...user, name };
+}
+
 export function hasRole(role: string): boolean {
   return user?.roles.includes(role as User["roles"][number]) ?? false;
 }

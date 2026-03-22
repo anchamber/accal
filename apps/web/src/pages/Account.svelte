@@ -6,13 +6,46 @@
     getPasskeyRegisterOptions,
     verifyPasskeyRegistration,
     deletePasskey,
+    updateMyName,
   } from "../lib/api.ts";
-  import { getUser } from "../lib/auth.svelte.ts";
+  import { getUser, setUserName } from "../lib/auth.svelte.ts";
   import { toastSuccess, toastError } from "../lib/toast.svelte.ts";
 
   let passkeys = $state<PasskeyCredential[]>([]);
   let loading = $state(true);
   let registering = $state(false);
+  let editingName = $state(false);
+  let nameInput = $state("");
+  let savingName = $state(false);
+
+  function startEditName() {
+    nameInput = getUser()?.name ?? "";
+    editingName = true;
+  }
+
+  async function saveName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === getUser()?.name) {
+      editingName = false;
+      return;
+    }
+    savingName = true;
+    try {
+      await updateMyName(trimmed);
+      setUserName(trimmed);
+      toastSuccess("Name updated");
+      editingName = false;
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to update name");
+    } finally {
+      savingName = false;
+    }
+  }
+
+  function handleNameKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") saveName();
+    else if (e.key === "Escape") editingName = false;
+  }
 
   async function loadPasskeys() {
     loading = true;
@@ -65,7 +98,24 @@
     <div class="profile-info">
       <div class="profile-row">
         <span class="label">Name</span>
-        <span>{user?.name}</span>
+        {#if editingName}
+          <input
+            class="name-input"
+            type="text"
+            bind:value={nameInput}
+            onkeydown={handleNameKeydown}
+            disabled={savingName}
+          />
+          <button class="btn btn-sm btn-primary" onclick={saveName} disabled={savingName}>
+            {savingName ? "..." : "Save"}
+          </button>
+          <button class="btn btn-sm" onclick={() => (editingName = false)} disabled={savingName}>
+            Cancel
+          </button>
+        {:else}
+          <span>{user?.name}</span>
+          <button class="btn-icon" onclick={startEditName} title="Edit name">&#9998;</button>
+        {/if}
       </div>
       <div class="profile-row">
         <span class="label">Email</span>

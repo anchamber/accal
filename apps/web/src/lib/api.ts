@@ -84,6 +84,13 @@ export function withdraw(jumpDayId: string, role: AssignmentRole): Promise<void>
   });
 }
 
+export function updateMyName(name: string): Promise<{ ok: boolean; name: string }> {
+  return request("/api/users/me/name", {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+}
+
 export function fetchUsers(): Promise<(User & { oauthProvider: string })[]> {
   return request("/api/users");
 }
