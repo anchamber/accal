@@ -67,7 +67,7 @@ describe("jumpdays routes", () => {
       "pilot",
       "tandem_master",
       "instructor",
-      "load_planner",
+      "load_organizer",
     ]);
   });
 

@@ -5,7 +5,7 @@ export type Role =
   | "pilot"
   | "tandem_master"
   | "instructor"
-  | "load_planner";
+  | "load_organizer";
 
 export type AssignmentRole =
   | "sdl"
@@ -13,7 +13,7 @@ export type AssignmentRole =
   | "pilot"
   | "tandem_master"
   | "instructor"
-  | "load_planner";
+  | "load_organizer";
 
 export type RequirementLevel = "required" | "limiting" | "optional";
 
@@ -55,9 +55,9 @@ export const DEFAULT_ROLE_CONFIG: Record<AssignmentRole, RoleConfig> = {
     minPerDay: 1,
     maxPerDay: null,
   },
-  load_planner: {
-    role: "load_planner",
-    label: "Load Planner",
+  load_organizer: {
+    role: "load_organizer",
+    label: "Load Organizer",
     requirement: "optional",
     minPerDay: 0,
     maxPerDay: null,
@@ -103,7 +103,7 @@ export const ROLES: Role[] = [
   "pilot",
   "tandem_master",
   "instructor",
-  "load_planner",
+  "load_organizer",
 ];
 export const ASSIGNMENT_ROLES: AssignmentRole[] = [
   "sdl",
@@ -111,5 +111,5 @@ export const ASSIGNMENT_ROLES: AssignmentRole[] = [
   "pilot",
   "tandem_master",
   "instructor",
-  "load_planner",
+  "load_organizer",
 ];
