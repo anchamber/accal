@@ -1,6 +1,7 @@
 # Stage 1: Install dependencies
 FROM node:22-slim AS deps
 WORKDIR /app
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 RUN corepack enable pnpm
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
