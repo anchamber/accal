@@ -59,7 +59,7 @@ jumpdays.get("/", (c) => {
       const user = db.select().from(schema.users).where(eq(schema.users.id, a.userId)).get()!;
       return {
         role: a.role as Assignment["role"],
-        user: { id: user.id, name: user.name, avatarUrl: user.avatarUrl },
+        user: { id: user.id, name: user.name, avatarUrl: user.avatarUrl, isProfile: !user.email },
       };
     });
 
@@ -269,6 +269,90 @@ jumpdays.delete("/:id/signup", async (c) => {
       and(
         eq(schema.assignments.jumpDayId, jumpDayId),
         eq(schema.assignments.userId, user.id),
+        eq(schema.assignments.role, role),
+      ),
+    )
+    .run();
+
+  return c.json({ ok: true });
+});
+
+const AdminAssignSchema = v.object({
+  userId: v.pipe(v.string(), v.minLength(1)),
+  role: v.picklist(ASSIGNMENT_ROLES as unknown as [string, ...string[]]),
+});
+
+// Admin assign a user/profile to a role on a jump day
+jumpdays.post("/:id/assign", requireRole("admin"), async (c) => {
+  const jumpDayId = c.req.param("id")!;
+  const body = await parseBody(c, AdminAssignSchema);
+  if (!body) return c.json({ error: "Invalid input" }, 400);
+  const role = body.role as AssignmentRole;
+
+  const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, jumpDayId)).get();
+  if (!day) return c.json({ error: "Jump day not found" }, 404);
+  if (day.canceledAt) return c.json({ error: "Jump day is canceled" }, 400);
+
+  // Verify user/profile exists and is not deleted
+  const target = db.select().from(schema.users).where(eq(schema.users.id, body.userId)).get();
+  if (!target || target.deletedAt) return c.json({ error: "User not found" }, 404);
+
+  // Verify user/profile has the required role
+  const hasRole = db
+    .select()
+    .from(schema.userRoles)
+    .where(and(eq(schema.userRoles.userId, body.userId), eq(schema.userRoles.role, role)))
+    .get();
+  if (!hasRole) return c.json({ error: "User does not have this role qualification" }, 403);
+
+  // Check max per day limit
+  const roleConf = db
+    .select()
+    .from(schema.roleConfig)
+    .where(eq(schema.roleConfig.role, role as string))
+    .get();
+  if (roleConf?.maxPerDay !== null && roleConf?.maxPerDay !== undefined) {
+    const currentCount = db
+      .select({ value: count() })
+      .from(schema.assignments)
+      .where(and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.role, role)))
+      .get();
+    if (currentCount && currentCount.value >= roleConf.maxPerDay) {
+      return c.json({ error: "Maximum assignments reached for this role" }, 409);
+    }
+  }
+
+  // Check duplicate
+  const existing = db
+    .select()
+    .from(schema.assignments)
+    .where(
+      and(
+        eq(schema.assignments.jumpDayId, jumpDayId),
+        eq(schema.assignments.userId, body.userId),
+        eq(schema.assignments.role, role),
+      ),
+    )
+    .get();
+  if (existing) return c.json({ error: "Already assigned for this role" }, 409);
+
+  db.insert(schema.assignments).values({ jumpDayId, userId: body.userId, role }).run();
+
+  return c.json({ ok: true }, 201);
+});
+
+// Admin unassign a user/profile from a role on a jump day
+jumpdays.delete("/:id/assign", requireRole("admin"), async (c) => {
+  const jumpDayId = c.req.param("id")!;
+  const body = await parseBody(c, AdminAssignSchema);
+  if (!body) return c.json({ error: "Invalid input" }, 400);
+  const role = body.role as AssignmentRole;
+
+  db.delete(schema.assignments)
+    .where(
+      and(
+        eq(schema.assignments.jumpDayId, jumpDayId),
+        eq(schema.assignments.userId, body.userId),
         eq(schema.assignments.role, role),
       ),
     )

@@ -12,6 +12,7 @@ import passkeyRoutes from "./routes/passkey.ts";
 import jumpdayRoutes from "./routes/jumpdays.ts";
 import userRoutes from "./routes/users.ts";
 import roleRoutes from "./routes/roles.ts";
+import profileRoutes from "./routes/profiles.ts";
 
 // Validate critical env vars in production
 if (process.env.NODE_ENV === "production") {
@@ -55,6 +56,7 @@ app.route("/api/auth/passkey", passkeyRoutes);
 app.route("/api/jumpdays", jumpdayRoutes);
 app.route("/api/users", userRoutes);
 app.route("/api/roles", roleRoutes);
+app.route("/api/profiles", profileRoutes);
 
 // In production, serve the built frontend
 if (process.env.NODE_ENV === "production") {

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 import { eq } from "drizzle-orm";
-import { createTestDb, seedTestUser, seedTestUserWithRoles } from "../test-utils.ts";
+import {
+  createTestDb,
+  seedTestUser,
+  seedTestUserWithRoles,
+  seedTestProfile,
+} from "../test-utils.ts";
 
 // Set up test DB mock
 const testState = { db: null as ReturnType<typeof createTestDb>["db"] | null };
@@ -1027,6 +1032,268 @@ describe("jumpdays routes", () => {
         }),
       );
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /api/jumpdays/:id/assign (admin)", () => {
+    it("admin can assign a user to a role", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "pilot-user",
+        email: "pilot@example.com",
+        name: "Pilot",
+        oauthProvider: "github",
+        oauthId: "pilot-oauth",
+      });
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "pilot-user", role: "pilot" }),
+        }),
+      );
+      expect(res.status).toBe(201);
+
+      const assignments = db
+        .select()
+        .from(schema.assignments)
+        .where(eq(schema.assignments.jumpDayId, "jd-1"))
+        .all();
+      expect(assignments).toHaveLength(1);
+      expect(assignments[0].userId).toBe("pilot-user");
+      expect(assignments[0].role).toBe("pilot");
+    });
+
+    it("admin can assign a profile to a role", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      seedTestProfile(db, "External Pilot", ["pilot"]);
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "test-profile-1", role: "pilot" }),
+        }),
+      );
+      expect(res.status).toBe(201);
+    });
+
+    it("rejects if user lacks the role qualification", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      seedTestUserWithRoles(db, ["manifest"], {
+        id: "manifest-user",
+        email: "manifest@example.com",
+        name: "Manifest",
+        oauthProvider: "github",
+        oauthId: "manifest-oauth",
+      });
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "manifest-user", role: "pilot" }),
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects duplicate assignment", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "pilot-user",
+        email: "pilot@example.com",
+        name: "Pilot",
+        oauthProvider: "github",
+        oauthId: "pilot-oauth",
+      });
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "pilot-user", role: "pilot" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "pilot-user", role: "pilot" }),
+        }),
+      );
+      expect(res.status).toBe(409);
+    });
+
+    it("respects maxPerDay limit", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      db.insert(schema.roleConfig)
+        .values({ role: "sdl", label: "SDL", requirement: "required", minPerDay: 1, maxPerDay: 1 })
+        .run();
+
+      // First user already assigned as sdl
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      seedTestProfile(db, "Another SDL", ["sdl"]);
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "test-profile-1", role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(409);
+    });
+
+    it("rejects assignment to canceled jump day", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays)
+        .values({ id: "jd-1", date: "2026-04-01", canceledAt: new Date() })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "test-user-1", role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 404 for non-existent jump day", async () => {
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/nonexistent/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "test-user-1", role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 404 for non-existent user", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "nonexistent", role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it("non-admin cannot use assign endpoint", async () => {
+      const db = testState.db!;
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "non-admin",
+        email: "nonadmin@example.com",
+        name: "Non Admin",
+        oauthProvider: "google",
+        oauthId: "na-oauth",
+      });
+      activeUserId = "non-admin";
+
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "test-user-1", role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe("DELETE /api/jumpdays/:id/assign (admin)", () => {
+    it("admin can unassign a user from a role", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "DELETE",
+          body: JSON.stringify({ userId: "test-user-1", role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      const assignments = db
+        .select()
+        .from(schema.assignments)
+        .where(eq(schema.assignments.jumpDayId, "jd-1"))
+        .all();
+      expect(assignments).toHaveLength(0);
+    });
+
+    it("non-admin cannot use unassign endpoint", async () => {
+      const db = testState.db!;
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "non-admin",
+        email: "nonadmin@example.com",
+        name: "Non Admin",
+        oauthProvider: "google",
+        oauthId: "na-oauth",
+      });
+      activeUserId = "non-admin";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "DELETE",
+          body: JSON.stringify({ userId: "test-user-1", role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe("GET /api/jumpdays isProfile flag", () => {
+    it("returns isProfile: true for profile assignments", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      seedTestProfile(db, "Profile Pilot", ["pilot"]);
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-profile-1", role: "pilot" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(authedRequest("/api/jumpdays?month=2026-04"));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toHaveLength(1);
+      const assignment = body[0].assignments[0];
+      expect(assignment.user.name).toBe("Profile Pilot");
+      expect(assignment.user.isProfile).toBe(true);
+    });
+
+    it("returns isProfile: false for real user assignments", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(authedRequest("/api/jumpdays?month=2026-04"));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const assignment = body[0].assignments[0];
+      expect(assignment.user.isProfile).toBe(false);
     });
   });
 });

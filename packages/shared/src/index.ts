@@ -66,12 +66,19 @@ export const DEFAULT_ROLE_CONFIG: Record<AssignmentRole, RoleConfig> = {
 
 export interface User {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   avatarUrl: string | null;
   oauthProvider: string | null;
   roles: Role[];
   hasPasskey?: boolean;
+  isProfile?: boolean;
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  roles: AssignmentRole[];
 }
 
 export interface PasskeyCredential {
@@ -95,6 +102,7 @@ export interface Assignment {
     id: string;
     name: string;
     avatarUrl: string | null;
+    isProfile?: boolean;
   };
 }
 

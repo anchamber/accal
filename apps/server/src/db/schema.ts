@@ -5,7 +5,7 @@ export const users = sqliteTable(
   "users",
   {
     id: text("id").primaryKey(),
-    email: text("email").notNull(),
+    email: text("email"),
     name: text("name").notNull(),
     avatarUrl: text("avatar_url"),
     oauthProvider: text("oauth_provider"),
@@ -15,10 +15,7 @@ export const users = sqliteTable(
       .notNull()
       .default(sql`(unixepoch())`),
   },
-  (table) => [
-    uniqueIndex("users_oauth_idx").on(table.oauthProvider, table.oauthId),
-    uniqueIndex("users_email_idx").on(table.email),
-  ],
+  (table) => [uniqueIndex("users_oauth_idx").on(table.oauthProvider, table.oauthId)],
 );
 
 export const userRoles = sqliteTable(

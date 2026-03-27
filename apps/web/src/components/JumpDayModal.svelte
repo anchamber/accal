@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { JumpDay, AssignmentRole, Assignment } from "@accal/shared";
-  import { signup, withdraw, updateJumpDay, cancelJumpDay, reinstateJumpDay } from "../lib/api.ts";
+  import type { JumpDay, AssignmentRole, Assignment, Profile } from "@accal/shared";
+  import { signup, withdraw, updateJumpDay, cancelJumpDay, reinstateJumpDay, fetchUsers, fetchProfiles, adminAssign, adminUnassign } from "../lib/api.ts";
   import { getUser, hasRole } from "../lib/auth.svelte.ts";
   import { toastError } from "../lib/toast.svelte.ts";
   import { getRoleConfigs, getRoleConfig } from "../lib/roles.svelte.ts";
@@ -91,6 +91,52 @@
     }
   }
 
+  // Admin assignment state
+  interface Assignable {
+    id: string;
+    name: string;
+    roles: string[];
+    isProfile: boolean;
+  }
+
+  let allAssignable = $state<Assignable[]>([]);
+  let assignSelections = $state<Record<string, string>>({});
+
+  if (hasRole("admin")) {
+    Promise.all([fetchUsers(), fetchProfiles()]).then(([users, profiles]) => {
+      allAssignable = [
+        ...users.map((u) => ({ id: u.id, name: u.name, roles: u.roles, isProfile: false })),
+        ...profiles.map((p) => ({ id: p.id, name: `${p.name} (profile)`, roles: p.roles as string[], isProfile: true })),
+      ];
+    }).catch(() => {});
+  }
+
+  function eligibleForRole(role: AssignmentRole): Assignable[] {
+    const assigned = new Set(jumpDay.assignments.filter((a) => a.role === role).map((a) => a.user.id));
+    return allAssignable.filter((u) => u.roles.includes(role) && !assigned.has(u.id));
+  }
+
+  async function handleAdminAssign(role: AssignmentRole) {
+    const userId = assignSelections[role];
+    if (!userId) return;
+    try {
+      await adminAssign(jumpDay.id, userId, role);
+      assignSelections[role] = "";
+      await onrefresh();
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  }
+
+  async function handleAdminUnassign(userId: string, role: AssignmentRole) {
+    try {
+      await adminUnassign(jumpDay.id, userId, role);
+      await onrefresh();
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  }
+
   function formatDate(dateStr: string): string {
     return new Date(dateStr + "T00:00:00").toLocaleDateString("default", {
       weekday: "long",
@@ -162,10 +208,17 @@
                     <img src={assignment.user.avatarUrl} alt="" class="avatar" />
                   {/if}
                   {assignment.user.name}
+                  {#if assignment.user.isProfile}
+                    <span class="profile-badge">profile</span>
+                  {/if}
                 </span>
                 {#if assignment.user.id === user?.id}
                   <button class="btn btn-sm btn-danger" onclick={() => handleWithdraw(role)}>
                     Withdraw
+                  </button>
+                {:else if hasRole("admin")}
+                  <button class="btn btn-sm btn-danger" onclick={() => handleAdminUnassign(assignment.user.id, role)}>
+                    Unassign
                   </button>
                 {/if}
               </div>
@@ -177,6 +230,22 @@
             <button class="btn btn-primary btn-sm" style="margin-top: 0.25rem;" onclick={() => handleSignup(role)}>
               Sign Up
             </button>
+          {/if}
+          {#if hasRole("admin") && !isCanceled}
+            {@const eligible = eligibleForRole(role)}
+            {#if eligible.length > 0}
+              <div class="admin-assign" style="margin-top: 0.25rem;">
+                <select class="inline-select" bind:value={assignSelections[role]}>
+                  <option value="">Assign...</option>
+                  {#each eligible as person}
+                    <option value={person.id}>{person.name}</option>
+                  {/each}
+                </select>
+                <button class="btn btn-sm btn-primary" onclick={() => handleAdminAssign(role)} disabled={!assignSelections[role]}>
+                  Assign
+                </button>
+              </div>
+            {/if}
           {/if}
         </div>
       {/each}

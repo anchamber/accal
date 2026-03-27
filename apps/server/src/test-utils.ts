@@ -5,7 +5,7 @@ import * as schema from "./db/schema.ts";
 const DDL = `
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
-    email TEXT NOT NULL,
+    email TEXT,
     name TEXT NOT NULL,
     avatar_url TEXT,
     oauth_provider TEXT,
@@ -14,7 +14,7 @@ const DDL = `
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
   CREATE UNIQUE INDEX IF NOT EXISTS users_oauth_idx ON users(oauth_provider, oauth_id);
-  CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email);
+  CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email) WHERE email IS NOT NULL;
 
   CREATE TABLE IF NOT EXISTS user_roles (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -91,6 +91,23 @@ export function seedTestUser(
   };
   db.insert(schema.users).values(user).run();
   return user;
+}
+
+export function seedTestProfile(
+  db: ReturnType<typeof createTestDb>["db"],
+  name: string,
+  roles: string[],
+  id = "test-profile-1",
+) {
+  db.insert(schema.users)
+    .values({ id, email: null, name } as typeof schema.users.$inferInsert)
+    .run();
+  for (const role of roles) {
+    db.insert(schema.userRoles)
+      .values({ userId: id, role } as typeof schema.userRoles.$inferInsert)
+      .run();
+  }
+  return { id, name, roles };
 }
 
 export function seedTestUserWithRoles(

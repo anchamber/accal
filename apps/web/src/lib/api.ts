@@ -1,5 +1,6 @@
 import type {
   User,
+  Profile,
   JumpDay,
   Role,
   AssignmentRole,
@@ -182,5 +183,66 @@ export function listPasskeys(): Promise<PasskeyCredential[]> {
 export function deletePasskey(id: string): Promise<void> {
   return request(`/api/auth/passkey/${encodeURIComponent(id)}`, {
     method: "DELETE",
+  });
+}
+
+// --- Profiles ---
+
+export function fetchProfiles(): Promise<Profile[]> {
+  return request("/api/profiles");
+}
+
+export function createProfile(name: string, roles: AssignmentRole[]): Promise<Profile> {
+  return request("/api/profiles", {
+    method: "POST",
+    body: JSON.stringify({ name, roles }),
+  });
+}
+
+export function updateProfile(
+  id: string,
+  data: { name?: string; roles?: AssignmentRole[] },
+): Promise<Profile> {
+  return request(`/api/profiles/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteProfile(id: string): Promise<void> {
+  return request(`/api/profiles/${id}`, { method: "DELETE" });
+}
+
+export function linkProfile(
+  profileId: string,
+  userId: string,
+): Promise<{ ok: boolean; mergedAssignments: number; skippedAssignments: number }> {
+  return request(`/api/profiles/${profileId}/link`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+}
+
+// --- Admin Assignment ---
+
+export function adminAssign(
+  jumpDayId: string,
+  userId: string,
+  role: AssignmentRole,
+): Promise<void> {
+  return request(`/api/jumpdays/${jumpDayId}/assign`, {
+    method: "POST",
+    body: JSON.stringify({ userId, role }),
+  });
+}
+
+export function adminUnassign(
+  jumpDayId: string,
+  userId: string,
+  role: AssignmentRole,
+): Promise<void> {
+  return request(`/api/jumpdays/${jumpDayId}/assign`, {
+    method: "DELETE",
+    body: JSON.stringify({ userId, role }),
   });
 }

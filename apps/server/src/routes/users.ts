@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, gte, isNull } from "drizzle-orm";
+import { eq, and, gte, isNull, isNotNull } from "drizzle-orm";
 import * as v from "valibot";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/index.ts";
@@ -34,7 +34,11 @@ users.patch("/me/name", async (c) => {
 
 // List all users (admin)
 users.get("/", requireRole("admin"), (c) => {
-  const allUsers = db.select().from(schema.users).where(isNull(schema.users.deletedAt)).all();
+  const allUsers = db
+    .select()
+    .from(schema.users)
+    .where(and(isNull(schema.users.deletedAt), isNotNull(schema.users.email)))
+    .all();
 
   const result = allUsers.map((u) => {
     const roles = db

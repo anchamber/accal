@@ -999,3 +999,82 @@ input[type="checkbox"] {
     margin: 1rem;
   }
 }
+
+/* Profiles & Admin Assignment */
+.section-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.empty-hint {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.create-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 400px;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.role-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.role-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.link-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0.5rem 0;
+}
+
+.link-user-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  text-align: left;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.link-user-item:hover {
+  background: var(--bg-hover);
+}
+
+.profile-badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  background: var(--primary);
+  color: white;
+  border-radius: 4px;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.admin-assign {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

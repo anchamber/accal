@@ -45,7 +45,7 @@ export async function authMiddleware(c: Context, next: Next) {
 
   c.set("user", {
     id: user.id,
-    email: user.email,
+    email: user.email!,
     name: user.name,
     avatarUrl: user.avatarUrl,
     roles,

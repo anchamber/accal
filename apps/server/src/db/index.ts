@@ -26,7 +26,7 @@ export function initDb() {
   const ddl = `
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      email TEXT NOT NULL,
+      email TEXT,
       name TEXT NOT NULL,
       avatar_url TEXT,
       oauth_provider TEXT,
@@ -35,7 +35,7 @@ export function initDb() {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
     CREATE UNIQUE INDEX IF NOT EXISTS users_oauth_idx ON users(oauth_provider, oauth_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email);
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email) WHERE email IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS user_roles (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -105,6 +105,30 @@ export function initDb() {
   }
   if (!jdColumns.some((c) => c.name === "cancel_reason")) {
     sqlite.exec("ALTER TABLE jump_days ADD COLUMN cancel_reason TEXT");
+  }
+
+  // Migration: make email nullable for profiles support
+  const emailCol = columns.find((c: any) => c.name === "email") as any;
+  if (emailCol && emailCol.notnull === 1) {
+    sqlite.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE users_new (
+        id TEXT PRIMARY KEY,
+        email TEXT,
+        name TEXT NOT NULL,
+        avatar_url TEXT,
+        oauth_provider TEXT,
+        oauth_id TEXT,
+        deleted_at INTEGER,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+      INSERT INTO users_new SELECT * FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+      CREATE UNIQUE INDEX users_oauth_idx ON users(oauth_provider, oauth_id);
+      CREATE UNIQUE INDEX users_email_idx ON users(email) WHERE email IS NOT NULL;
+      PRAGMA foreign_keys = ON;
+    `);
   }
 
   // Seed default role config for any missing roles
