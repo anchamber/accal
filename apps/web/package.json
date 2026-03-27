@@ -14,9 +14,9 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "catalog:",
-    "svelte": "^5.34.7",
+    "svelte": "^5.55.0",
     "typescript": "catalog:",
-    "vite": "catalog:",
+    "vite": "npm:@voidzero-dev/vite-plus-core@^0.1.14",
     "vite-plus": "catalog:"
   }
 }
