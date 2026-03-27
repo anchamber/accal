@@ -10,13 +10,13 @@
   },
   "dependencies": {
     "@accal/shared": "workspace:*",
-    "@hono/node-server": "^1.14.1",
+    "@hono/node-server": "^1.19.11",
     "@simplewebauthn/server": "catalog:",
-    "arctic": "^3.5.0",
-    "better-sqlite3": "^11.9.1",
-    "drizzle-orm": "^0.44.2",
-    "hono": "^4.7.10",
-    "nanoid": "^5.1.5",
+    "arctic": "^3.7.0",
+    "better-sqlite3": "^12.8.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.9",
+    "nanoid": "^5.1.7",
     "nodemailer": "catalog:",
     "valibot": "catalog:"
   },
@@ -24,8 +24,8 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "catalog:",
     "@types/nodemailer": "catalog:",
-    "drizzle-kit": "^0.31.5",
-    "tsx": "^4.19.4",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.21.0",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }
