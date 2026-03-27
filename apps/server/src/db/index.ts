@@ -122,7 +122,7 @@ export function initDb() {
         deleted_at INTEGER,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
       );
-      INSERT INTO users_new SELECT * FROM users;
+      INSERT INTO users_new SELECT id, email, name, avatar_url, oauth_provider, oauth_id, deleted_at, COALESCE(created_at, unixepoch()) FROM users;
       DROP TABLE users;
       ALTER TABLE users_new RENAME TO users;
       CREATE UNIQUE INDEX users_oauth_idx ON users(oauth_provider, oauth_id);
