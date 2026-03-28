@@ -180,6 +180,15 @@ body {
   gap: 0.5rem;
 }
 
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  min-width: unset;
+  line-height: 1;
+}
+
 /* Forms */
 input[type="email"],
 input[type="date"],
