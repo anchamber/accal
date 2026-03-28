@@ -1262,6 +1262,374 @@ describe("jumpdays routes", () => {
     });
   });
 
+  describe("backup signup (POST /api/jumpdays/:id/signup with backup)", () => {
+    it("signs up as backup for a role", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "sdl", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(201);
+
+      const assignments = db.select().from(schema.assignments).all();
+      expect(assignments).toHaveLength(1);
+      expect(assignments[0]!.role).toBe("sdl");
+      expect(assignments[0]!.backup).toBe(1);
+    });
+
+    it("backup signup bypasses maxPerDay limit", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+      db.insert(schema.roleConfig)
+        .values({ role: "sdl", label: "SDL", requirement: "required", minPerDay: 1, maxPerDay: 1 })
+        .run();
+
+      // Primary slot already taken
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      // Second user signs up as backup — should succeed despite maxPerDay=1
+      seedTestUserWithRoles(db, ["sdl"], {
+        id: "test-user-2",
+        email: "user2@example.com",
+        name: "User 2",
+        oauthProvider: "github",
+        oauthId: "456",
+      });
+      activeUserId = "test-user-2";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "sdl", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(201);
+
+      const assignments = db.select().from(schema.assignments).all();
+      expect(assignments).toHaveLength(2);
+      expect(assignments.find((a) => a.userId === "test-user-2")!.backup).toBe(1);
+    });
+
+    it("rejects backup signup if already signed up as primary for same role", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      // User is already primary
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "sdl", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(409);
+    });
+
+    it("rejects backup signup without qualification", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+
+      seedTestUser(db, {
+        id: "test-user-nopilot",
+        email: "nopilot@example.com",
+        name: "No Pilot",
+        oauthProvider: "google",
+        oauthId: "789",
+      });
+      activeUserId = "test-user-nopilot";
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "pilot", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects backup signup on canceled day", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays)
+        .values({ id: "jd-c", date: "2026-03-15", canceledAt: new Date() })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-c/signup", {
+          method: "POST",
+          body: JSON.stringify({ role: "sdl", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("withdraws from a backup assignment", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-03-15" }).run();
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl", backup: 1 })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/signup", {
+          method: "DELETE",
+          body: JSON.stringify({ role: "sdl" }),
+        }),
+      );
+      expect(res.status).toBe(200);
+
+      const assignments = db.select().from(schema.assignments).all();
+      expect(assignments).toHaveLength(0);
+    });
+  });
+
+  describe("backup admin assign (POST /api/jumpdays/:id/assign with backup)", () => {
+    it("admin can assign a user as backup", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "pilot-user",
+        email: "pilot@example.com",
+        name: "Pilot",
+        oauthProvider: "github",
+        oauthId: "pilot-oauth",
+      });
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "pilot-user", role: "pilot", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(201);
+
+      const assignments = db.select().from(schema.assignments).all();
+      expect(assignments).toHaveLength(1);
+      expect(assignments[0].backup).toBe(1);
+    });
+
+    it("admin backup assign bypasses maxPerDay", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      db.insert(schema.roleConfig)
+        .values({ role: "sdl", label: "SDL", requirement: "required", minPerDay: 1, maxPerDay: 1 })
+        .run();
+
+      // Primary slot taken
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      seedTestProfile(db, "Backup SDL", ["sdl"]);
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "test-profile-1", role: "sdl", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(201);
+    });
+
+    it("admin cannot assign same user as backup if already assigned", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "pilot-user",
+        email: "pilot@example.com",
+        name: "Pilot",
+        oauthProvider: "github",
+        oauthId: "pilot-oauth",
+      });
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "pilot-user", role: "pilot" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(
+        authedRequest("/api/jumpdays/jd-1/assign", {
+          method: "POST",
+          body: JSON.stringify({ userId: "pilot-user", role: "pilot", backup: true }),
+        }),
+      );
+      expect(res.status).toBe(409);
+    });
+  });
+
+  describe("GET /api/jumpdays backup flag", () => {
+    it("returns backup: false for primary assignments", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl" })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(authedRequest("/api/jumpdays?month=2026-04"));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body[0].assignments[0].backup).toBe(false);
+    });
+
+    it("returns backup: true for backup assignments", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+      db.insert(schema.assignments)
+        .values({ jumpDayId: "jd-1", userId: "test-user-1", role: "sdl", backup: 1 })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(authedRequest("/api/jumpdays?month=2026-04"));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body[0].assignments[0].backup).toBe(true);
+    });
+  });
+
+  describe("GET /api/jumpdays assignment ordering", () => {
+    it("returns assignments in signup order (by created_at)", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+
+      // Create three users
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "user-a",
+        email: "a@example.com",
+        name: "User A",
+        oauthProvider: "github",
+        oauthId: "a",
+      });
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "user-b",
+        email: "b@example.com",
+        name: "User B",
+        oauthProvider: "github",
+        oauthId: "b",
+      });
+      seedTestUserWithRoles(db, ["pilot"], {
+        id: "user-c",
+        email: "c@example.com",
+        name: "User C",
+        oauthProvider: "github",
+        oauthId: "c",
+      });
+
+      // Insert in deliberate non-alphabetical order with explicit timestamps
+      const now = Math.floor(Date.now() / 1000);
+      db.insert(schema.assignments)
+        .values({
+          jumpDayId: "jd-1",
+          userId: "user-b",
+          role: "pilot",
+          createdAt: new Date(now * 1000),
+        })
+        .run();
+      db.insert(schema.assignments)
+        .values({
+          jumpDayId: "jd-1",
+          userId: "user-c",
+          role: "pilot",
+          createdAt: new Date((now + 1) * 1000),
+        })
+        .run();
+      db.insert(schema.assignments)
+        .values({
+          jumpDayId: "jd-1",
+          userId: "user-a",
+          role: "pilot",
+          createdAt: new Date((now + 2) * 1000),
+        })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(authedRequest("/api/jumpdays?month=2026-04"));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const names = body[0].assignments.map((a: any) => a.user.name);
+      expect(names).toEqual(["User B", "User C", "User A"]);
+    });
+
+    it("returns backup assignments in signup order", async () => {
+      const db = testState.db!;
+      db.insert(schema.jumpDays).values({ id: "jd-1", date: "2026-04-01" }).run();
+
+      seedTestUserWithRoles(db, ["sdl"], {
+        id: "user-x",
+        email: "x@example.com",
+        name: "User X",
+        oauthProvider: "github",
+        oauthId: "x",
+      });
+      seedTestUserWithRoles(db, ["sdl"], {
+        id: "user-y",
+        email: "y@example.com",
+        name: "User Y",
+        oauthProvider: "github",
+        oauthId: "y",
+      });
+
+      const now = Math.floor(Date.now() / 1000);
+      // Primary assignment
+      db.insert(schema.assignments)
+        .values({
+          jumpDayId: "jd-1",
+          userId: "test-user-1",
+          role: "sdl",
+          createdAt: new Date(now * 1000),
+        })
+        .run();
+      // Backups: Y before X
+      db.insert(schema.assignments)
+        .values({
+          jumpDayId: "jd-1",
+          userId: "user-y",
+          role: "sdl",
+          backup: 1,
+          createdAt: new Date((now + 1) * 1000),
+        })
+        .run();
+      db.insert(schema.assignments)
+        .values({
+          jumpDayId: "jd-1",
+          userId: "user-x",
+          role: "sdl",
+          backup: 1,
+          createdAt: new Date((now + 2) * 1000),
+        })
+        .run();
+
+      const app = createApp();
+      const res = await app.request(authedRequest("/api/jumpdays?month=2026-04"));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const assignments = body[0].assignments;
+
+      // Primary first, then backups in order
+      expect(assignments[0].user.name).toBe("Test User");
+      expect(assignments[0].backup).toBe(false);
+      expect(assignments[1].user.name).toBe("User Y");
+      expect(assignments[1].backup).toBe(true);
+      expect(assignments[2].user.name).toBe("User X");
+      expect(assignments[2].backup).toBe(true);
+    });
+  });
+
   describe("GET /api/jumpdays isProfile flag", () => {
     it("returns isProfile: true for profile assignments", async () => {
       const db = testState.db!;

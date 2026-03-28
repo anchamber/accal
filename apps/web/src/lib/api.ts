@@ -65,10 +65,10 @@ export function reinstateJumpDay(jumpDayId: string): Promise<void> {
   return request(`/api/jumpdays/${jumpDayId}/reinstate`, { method: "POST" });
 }
 
-export function signup(jumpDayId: string, role: AssignmentRole): Promise<void> {
+export function signup(jumpDayId: string, role: AssignmentRole, backup = false): Promise<void> {
   return request(`/api/jumpdays/${jumpDayId}/signup`, {
     method: "POST",
-    body: JSON.stringify({ role }),
+    body: JSON.stringify({ role, backup }),
   });
 }
 
@@ -229,10 +229,11 @@ export function adminAssign(
   jumpDayId: string,
   userId: string,
   role: AssignmentRole,
+  backup = false,
 ): Promise<void> {
   return request(`/api/jumpdays/${jumpDayId}/assign`, {
     method: "POST",
-    body: JSON.stringify({ userId, role }),
+    body: JSON.stringify({ userId, role, backup }),
   });
 }
 

@@ -98,6 +98,7 @@ export interface JumpDay {
 
 export interface Assignment {
   role: AssignmentRole;
+  backup: boolean;
   user: {
     id: string;
     name: string;

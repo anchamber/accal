@@ -47,7 +47,9 @@
     const configs = getRoleConfigs();
     const assignmentCounts = new Map<string, number>();
     for (const a of jd.assignments) {
-      assignmentCounts.set(a.role, (assignmentCounts.get(a.role) ?? 0) + 1);
+      if (!a.backup) {
+        assignmentCounts.set(a.role, (assignmentCounts.get(a.role) ?? 0) + 1);
+      }
     }
 
     const requiredConfigs = configs.filter((c) => c.requirement === "required");
@@ -70,7 +72,9 @@
     const configs = getRoleConfigs();
     const assignmentCounts = new Map<string, number>();
     for (const a of jd.assignments) {
-      assignmentCounts.set(a.role, (assignmentCounts.get(a.role) ?? 0) + 1);
+      if (!a.backup) {
+        assignmentCounts.set(a.role, (assignmentCounts.get(a.role) ?? 0) + 1);
+      }
     }
 
     const missingRequired = configs

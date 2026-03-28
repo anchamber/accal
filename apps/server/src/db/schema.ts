@@ -54,6 +54,10 @@ export const assignments = sqliteTable(
     role: text("role", {
       enum: ["sdl", "manifest", "pilot", "tandem_master", "instructor", "load_organizer"],
     }).notNull(),
+    backup: integer("backup").notNull().default(0), // 0 = primary, 1 = backup
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => [
     uniqueIndex("assignments_user_role_idx").on(table.jumpDayId, table.userId, table.role),

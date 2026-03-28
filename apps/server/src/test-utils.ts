@@ -35,6 +35,8 @@ const DDL = `
     jump_day_id TEXT NOT NULL REFERENCES jump_days(id) ON DELETE CASCADE,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role TEXT NOT NULL CHECK(role IN ('sdl', 'manifest', 'pilot', 'tandem_master', 'instructor', 'load_organizer')),
+    backup INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     UNIQUE(jump_day_id, user_id, role)
   );
 

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, like, count } from "drizzle-orm";
+import { eq, and, like, count, asc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import * as v from "valibot";
 import { db, schema } from "../db/index.ts";
@@ -25,6 +25,7 @@ const CancelSchema = v.object({
 
 const SignupSchema = v.object({
   role: v.picklist(ASSIGNMENT_ROLES as unknown as [string, ...string[]]),
+  backup: v.optional(v.boolean()),
 });
 
 const ImportIcalJsonSchema = v.object({
@@ -53,12 +54,14 @@ jumpdays.get("/", (c) => {
       .select()
       .from(schema.assignments)
       .where(eq(schema.assignments.jumpDayId, day.id))
+      .orderBy(asc(schema.assignments.createdAt))
       .all();
 
     const assignments: Assignment[] = dayAssignments.map((a) => {
       const user = db.select().from(schema.users).where(eq(schema.users.id, a.userId)).get()!;
       return {
         role: a.role as Assignment["role"],
+        backup: a.backup === 1,
         user: { id: user.id, name: user.name, avatarUrl: user.avatarUrl, isProfile: !user.email },
       };
     });
@@ -208,6 +211,7 @@ jumpdays.post("/:id/signup", async (c) => {
     return c.json({ error: "Invalid role" }, 400);
   }
   const role = body.role as AssignmentRole;
+  const isBackup = body.backup ? 1 : 0;
 
   // Check user has the required role
   if (!user.roles.includes(role)) {
@@ -218,20 +222,28 @@ jumpdays.post("/:id/signup", async (c) => {
   if (!day) return c.json({ error: "Jump day not found" }, 404);
   if (day.canceledAt) return c.json({ error: "Jump day is canceled" }, 400);
 
-  // Check max per day limit
-  const roleConf = db
-    .select()
-    .from(schema.roleConfig)
-    .where(eq(schema.roleConfig.role, role as string))
-    .get();
-  if (roleConf?.maxPerDay !== null && roleConf?.maxPerDay !== undefined) {
-    const currentCount = db
-      .select({ value: count() })
-      .from(schema.assignments)
-      .where(and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.role, role)))
+  // Check max per day limit (only for primary assignments)
+  if (!isBackup) {
+    const roleConf = db
+      .select()
+      .from(schema.roleConfig)
+      .where(eq(schema.roleConfig.role, role as string))
       .get();
-    if (currentCount && currentCount.value >= roleConf.maxPerDay) {
-      return c.json({ error: "Maximum signups reached for this role" }, 409);
+    if (roleConf?.maxPerDay !== null && roleConf?.maxPerDay !== undefined) {
+      const currentCount = db
+        .select({ value: count() })
+        .from(schema.assignments)
+        .where(
+          and(
+            eq(schema.assignments.jumpDayId, jumpDayId),
+            eq(schema.assignments.role, role),
+            eq(schema.assignments.backup, 0),
+          ),
+        )
+        .get();
+      if (currentCount && currentCount.value >= roleConf.maxPerDay) {
+        return c.json({ error: "Maximum signups reached for this role" }, 409);
+      }
     }
   }
 
@@ -251,7 +263,9 @@ jumpdays.post("/:id/signup", async (c) => {
     return c.json({ error: "You are already signed up for this role" }, 409);
   }
 
-  db.insert(schema.assignments).values({ jumpDayId, userId: user.id, role }).run();
+  db.insert(schema.assignments)
+    .values({ jumpDayId, userId: user.id, role, backup: isBackup })
+    .run();
 
   return c.json({ ok: true }, 201);
 });
@@ -280,6 +294,7 @@ jumpdays.delete("/:id/signup", async (c) => {
 const AdminAssignSchema = v.object({
   userId: v.pipe(v.string(), v.minLength(1)),
   role: v.picklist(ASSIGNMENT_ROLES as unknown as [string, ...string[]]),
+  backup: v.optional(v.boolean()),
 });
 
 // Admin assign a user/profile to a role on a jump day
@@ -288,6 +303,7 @@ jumpdays.post("/:id/assign", requireRole("admin"), async (c) => {
   const body = await parseBody(c, AdminAssignSchema);
   if (!body) return c.json({ error: "Invalid input" }, 400);
   const role = body.role as AssignmentRole;
+  const isBackup = body.backup ? 1 : 0;
 
   const day = db.select().from(schema.jumpDays).where(eq(schema.jumpDays.id, jumpDayId)).get();
   if (!day) return c.json({ error: "Jump day not found" }, 404);
@@ -305,20 +321,28 @@ jumpdays.post("/:id/assign", requireRole("admin"), async (c) => {
     .get();
   if (!hasRole) return c.json({ error: "User does not have this role qualification" }, 403);
 
-  // Check max per day limit
-  const roleConf = db
-    .select()
-    .from(schema.roleConfig)
-    .where(eq(schema.roleConfig.role, role as string))
-    .get();
-  if (roleConf?.maxPerDay !== null && roleConf?.maxPerDay !== undefined) {
-    const currentCount = db
-      .select({ value: count() })
-      .from(schema.assignments)
-      .where(and(eq(schema.assignments.jumpDayId, jumpDayId), eq(schema.assignments.role, role)))
+  // Check max per day limit (only for primary assignments)
+  if (!isBackup) {
+    const roleConf = db
+      .select()
+      .from(schema.roleConfig)
+      .where(eq(schema.roleConfig.role, role as string))
       .get();
-    if (currentCount && currentCount.value >= roleConf.maxPerDay) {
-      return c.json({ error: "Maximum assignments reached for this role" }, 409);
+    if (roleConf?.maxPerDay !== null && roleConf?.maxPerDay !== undefined) {
+      const currentCount = db
+        .select({ value: count() })
+        .from(schema.assignments)
+        .where(
+          and(
+            eq(schema.assignments.jumpDayId, jumpDayId),
+            eq(schema.assignments.role, role),
+            eq(schema.assignments.backup, 0),
+          ),
+        )
+        .get();
+      if (currentCount && currentCount.value >= roleConf.maxPerDay) {
+        return c.json({ error: "Maximum assignments reached for this role" }, 409);
+      }
     }
   }
 
@@ -336,7 +360,9 @@ jumpdays.post("/:id/assign", requireRole("admin"), async (c) => {
     .get();
   if (existing) return c.json({ error: "Already assigned for this role" }, 409);
 
-  db.insert(schema.assignments).values({ jumpDayId, userId: body.userId, role }).run();
+  db.insert(schema.assignments)
+    .values({ jumpDayId, userId: body.userId, role, backup: isBackup })
+    .run();
 
   return c.json({ ok: true }, 201);
 });

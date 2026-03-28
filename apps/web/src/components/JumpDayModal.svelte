@@ -20,7 +20,11 @@
   const user = $derived(getUser());
 
   function assignmentsForRole(role: AssignmentRole): Assignment[] {
-    return jumpDay.assignments.filter((a) => a.role === role);
+    return jumpDay.assignments.filter((a) => a.role === role && !a.backup);
+  }
+
+  function backupAssignmentsForRole(role: AssignmentRole): Assignment[] {
+    return jumpDay.assignments.filter((a) => a.role === role && a.backup);
   }
 
   function isSignedUp(role: AssignmentRole): boolean {
@@ -40,9 +44,15 @@
     return true;
   }
 
-  async function handleSignup(role: AssignmentRole) {
+  function canSignupBackup(role: AssignmentRole): boolean {
+    if (isCanceled) return false;
+    if (!hasRole(role) || isSignedUp(role)) return false;
+    return true;
+  }
+
+  async function handleSignup(role: AssignmentRole, backup = false) {
     try {
-      await signup(jumpDay.id, role);
+      await signup(jumpDay.id, role, backup);
       await onrefresh();
     } catch (e) {
       toastError((e as Error).message);
@@ -111,16 +121,17 @@
     }).catch(() => {});
   }
 
-  function eligibleForRole(role: AssignmentRole): Assignable[] {
+  function eligibleForRole(role: AssignmentRole, backup = false): Assignable[] {
+    // Exclude anyone already assigned (primary or backup) for this role
     const assigned = new Set(jumpDay.assignments.filter((a) => a.role === role).map((a) => a.user.id));
     return allAssignable.filter((u) => u.roles.includes(role) && !assigned.has(u.id));
   }
 
-  async function handleAdminAssign(role: AssignmentRole) {
+  async function handleAdminAssign(role: AssignmentRole, backup = false) {
     const userId = assignSelections[role];
     if (!userId) return;
     try {
-      await adminAssign(jumpDay.id, userId, role);
+      await adminAssign(jumpDay.id, userId, role, backup);
       assignSelections[role] = "";
       await onrefresh();
     } catch (e) {
@@ -191,6 +202,7 @@
       {#each getRoleConfigs() as config}
         {@const role = config.role}
         {@const roleAssignments = assignmentsForRole(role)}
+        {@const roleBackups = backupAssignmentsForRole(role)}
         <div class="section">
           <h4>
             {config.label}
@@ -200,41 +212,88 @@
               <span class="req-badge req-limiting" title="Limits possibilities when missing">limiting</span>
             {/if}
           </h4>
-          {#if roleAssignments.length > 0}
-            {#each roleAssignments as assignment}
-              <div class="assignment">
-                <span class="assigned-user">
-                  {#if assignment.user.avatarUrl}
-                    <img src={assignment.user.avatarUrl} alt="" class="avatar" />
-                  {/if}
-                  {assignment.user.name}
-                  {#if assignment.user.isProfile}
-                    <span class="profile-badge">profile</span>
-                  {/if}
-                </span>
-                {#if assignment.user.id === user?.id}
-                  <button class="btn btn-sm btn-danger" onclick={() => handleWithdraw(role)}>
-                    Withdraw
-                  </button>
-                {:else if hasRole("admin")}
-                  <button class="btn btn-sm btn-danger" onclick={() => handleAdminUnassign(assignment.user.id, role)}>
-                    Unassign
-                  </button>
-                {/if}
-              </div>
-            {/each}
-          {:else}
-            <p class="unassigned">Not assigned</p>
+          <div class="role-columns">
+            <!-- Assigned column -->
+            <div class="role-column">
+              <h5 class="role-column-heading">Assigned</h5>
+              {#if roleAssignments.length > 0}
+                {#each roleAssignments as assignment}
+                  <div class="assignment">
+                    <span class="assigned-user">
+                      {#if assignment.user.avatarUrl}
+                        <img src={assignment.user.avatarUrl} alt="" class="avatar" />
+                      {/if}
+                      {assignment.user.name}
+                      {#if assignment.user.isProfile}
+                        <span class="profile-badge">profile</span>
+                      {/if}
+                    </span>
+                    {#if assignment.user.id === user?.id}
+                      <button class="btn btn-sm btn-danger" onclick={() => handleWithdraw(role)}>
+                        Withdraw
+                      </button>
+                    {:else if hasRole("admin")}
+                      <button class="btn btn-sm btn-danger" onclick={() => handleAdminUnassign(assignment.user.id, role)}>
+                        Unassign
+                      </button>
+                    {/if}
+                  </div>
+                {/each}
+              {:else}
+                <p class="unassigned">Not assigned</p>
+              {/if}
+            </div>
+            <!-- Backup column -->
+            <div class="role-column">
+              <h5 class="role-column-heading">Backup</h5>
+              {#if roleBackups.length > 0}
+                {#each roleBackups as assignment}
+                  <div class="assignment">
+                    <span class="assigned-user">
+                      {#if assignment.user.avatarUrl}
+                        <img src={assignment.user.avatarUrl} alt="" class="avatar" />
+                      {/if}
+                      {assignment.user.name}
+                      {#if assignment.user.isProfile}
+                        <span class="profile-badge">profile</span>
+                      {/if}
+                    </span>
+                    {#if assignment.user.id === user?.id}
+                      <button class="btn btn-sm btn-danger" onclick={() => handleWithdraw(role)}>
+                        Withdraw
+                      </button>
+                    {:else if hasRole("admin")}
+                      <button class="btn btn-sm btn-danger" onclick={() => handleAdminUnassign(assignment.user.id, role)}>
+                        Unassign
+                      </button>
+                    {/if}
+                  </div>
+                {/each}
+              {:else}
+                <p class="unassigned">No backup</p>
+              {/if}
+            </div>
+          </div>
+          <!-- Sign up buttons -->
+          {#if canSignup(role) || canSignupBackup(role)}
+            <div class="signup-buttons">
+              {#if canSignup(role)}
+                <button class="btn btn-primary btn-sm" onclick={() => handleSignup(role)}>
+                  Sign Up
+                </button>
+              {/if}
+              {#if canSignupBackup(role)}
+                <button class="btn btn-sm btn-outline" onclick={() => handleSignup(role, true)}>
+                  Sign Up as Backup
+                </button>
+              {/if}
+            </div>
           {/if}
-          {#if canSignup(role)}
-            <button class="btn btn-primary btn-sm" style="margin-top: 0.25rem;" onclick={() => handleSignup(role)}>
-              Sign Up
-            </button>
-          {/if}
+          <!-- Admin assign -->
           {#if hasRole("admin") && !isCanceled}
             {@const eligible = eligibleForRole(role)}
             {#if eligible.length > 0}
-              <div class="admin-assign" style="margin-top: 0.25rem;">
+              <div class="admin-assign">
                 <select class="inline-select" bind:value={assignSelections[role]}>
                   <option value="">Assign...</option>
                   {#each eligible as person}
@@ -243,6 +302,9 @@
                 </select>
                 <button class="btn btn-sm btn-primary" onclick={() => handleAdminAssign(role)} disabled={!assignSelections[role]}>
                   Assign
+                </button>
+                <button class="btn btn-sm btn-outline" onclick={() => handleAdminAssign(role, true)} disabled={!assignSelections[role]}>
+                  Assign as Backup
                 </button>
               </div>
             {/if}

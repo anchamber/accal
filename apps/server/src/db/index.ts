@@ -57,6 +57,8 @@ export function initDb() {
       jump_day_id TEXT NOT NULL REFERENCES jump_days(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       role TEXT NOT NULL CHECK(role IN ('sdl', 'manifest', 'pilot', 'tandem_master', 'instructor', 'load_organizer')),
+      backup INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       UNIQUE(jump_day_id, user_id, role)
     );
     CREATE UNIQUE INDEX IF NOT EXISTS assignments_user_role_idx ON assignments(jump_day_id, user_id, role);
@@ -130,6 +132,16 @@ export function initDb() {
       CREATE UNIQUE INDEX users_email_idx ON users(email) WHERE email IS NOT NULL;
       PRAGMA foreign_keys = ON;
     `);
+  }
+
+  // Migration: add backup column to assignments
+  const assignCols = sqlite.prepare("PRAGMA table_info(assignments)").all() as { name: string }[];
+  if (!assignCols.some((c) => c.name === "backup")) {
+    sqlite.exec("ALTER TABLE assignments ADD COLUMN backup INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!assignCols.some((c) => c.name === "created_at")) {
+    const now = Math.floor(Date.now() / 1000);
+    sqlite.exec(`ALTER TABLE assignments ADD COLUMN created_at INTEGER NOT NULL DEFAULT ${now}`);
   }
 
   // Seed default role config for any missing roles
