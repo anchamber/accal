@@ -112,6 +112,7 @@ export function initDb() {
   if (emailCol && emailCol.notnull === 1) {
     sqlite.exec(`
       PRAGMA foreign_keys = OFF;
+      DROP TABLE IF EXISTS users_new;
       CREATE TABLE users_new (
         id TEXT PRIMARY KEY,
         email TEXT,
